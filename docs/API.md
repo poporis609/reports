@@ -243,8 +243,8 @@ interface Pattern {
 
 | 항목 | 값 |
 |------|-----|
-| User Pool ID | `us-east-1_oesTGe9D5` |
-| Client ID | `6ugujl077j6fmcqgptjmn91b7e` |
+| User Pool ID | `[AWS Secrets Manager에서 관리]` |
+| Client ID | `[AWS Secrets Manager에서 관리]` |
 | Region | `us-east-1` |
 
 ### 토큰 사용 예시 (JavaScript)
