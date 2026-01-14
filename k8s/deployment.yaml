@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weekly-report
+  namespace: default
+  labels:
+    app: weekly-report
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: weekly-report
+  template:
+    metadata:
+      labels:
+        app: weekly-report
+        version: v1
+    spec:
+      serviceAccountName: weekly-report-sa
+      containers:
+      - name: weekly-report
+        image: 324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DEBUG
+          value: "false"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: USE_SECRETS_MANAGER
+          value: "true"
+        - name: DB_SECRET_NAME
+          value: "library-api/db-password"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: BEDROCK_FLOW_ID
+          value: "BZKT7TJGPT"
+        - name: BEDROCK_FLOW_ALIAS_ID
+          value: "QENFHYZ1KE"
+        - name: COGNITO_USER_POOL_ID
+          value: "us-east-1_oesTGe9D5"
+        - name: COGNITO_CLIENT_ID
+          value: "6ugujl077j6fmcqgptjmn91b7e"
+        - name: SES_SENDER_EMAIL
+          value: "noreply@aws11.shop"
+        - name: API_BASE_URL
+          value: "https://api.aws11.shop"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /report/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /report/health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
