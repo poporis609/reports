@@ -15,7 +15,10 @@
       "Action": [
         "secretsmanager:GetSecretValue"
       ],
-      "Resource": "arn:aws:secretsmanager:us-east-1:*:secret:library-api/db-password*"
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:*:secret:library-api/db-password*",
+        "arn:aws:secretsmanager:us-east-1:*:secret:weekly-report/app-config*"
+      ]
     },
     {
       "Effect": "Allow",

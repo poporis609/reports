@@ -95,9 +95,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Apply ConfigMap and Secret first
+          # Apply ConfigMap and ServiceAccount (IRSA 사용)
           kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secret.yaml
           kubectl apply -f k8s/serviceaccount.yaml
           
           # Update image tag in deployment and apply
@@ -107,9 +106,6 @@ jobs:
           # Apply service and ingress
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
-          
-          # Force restart to pick up new image
-          kubectl rollout restart deployment/weekly-report -n default
           
           # Wait for rollout
           kubectl rollout status deployment/weekly-report --timeout=300s -n default

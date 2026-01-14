@@ -28,8 +28,8 @@ class CognitoService:
             "cognito-idp",
             region_name=self.settings.AWS_REGION
         )
-        self.user_pool_id = self.settings.COGNITO_USER_POOL_ID
-        self.client_id = self.settings.COGNITO_CLIENT_ID
+        self.user_pool_id = self.settings.get_cognito_user_pool_id()
+        self.client_id = self.settings.get_cognito_client_id()
         self._jwks = None
     
     @property

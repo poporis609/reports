@@ -49,8 +49,8 @@ class BedrockService:
             "bedrock-agent-runtime",
             region_name=self.settings.AWS_REGION
         )
-        self.flow_id = self.settings.BEDROCK_FLOW_ID
-        self.flow_alias_id = self.settings.BEDROCK_FLOW_ALIAS_ID
+        self.flow_id = self.settings.get_bedrock_flow_id()
+        self.flow_alias_id = self.settings.get_bedrock_flow_alias_id()
         self.timeout = self.settings.BEDROCK_TIMEOUT
     
     def format_entries_for_bedrock(

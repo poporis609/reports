@@ -43,10 +43,11 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     USE_SECRETS_MANAGER: bool = True
     DB_SECRET_NAME: str = "library-api/db-password"
+    APP_CONFIG_SECRET_NAME: str = "weekly-report/app-config"
     
-    # Bedrock Flow 설정
-    BEDROCK_FLOW_ID: str = "BZKT7TJGPT"
-    BEDROCK_FLOW_ALIAS_ID: str = "QENFHYZ1KE"
+    # Bedrock Flow 설정 (환경 변수 또는 Secrets Manager에서)
+    BEDROCK_FLOW_ID: Optional[str] = None
+    BEDROCK_FLOW_ALIAS_ID: Optional[str] = None
     BEDROCK_TIMEOUT: int = 30
     
     # 데이터베이스 설정 (Secrets Manager 미사용 시)
@@ -56,9 +57,9 @@ class Settings(BaseSettings):
     DB_USER: Optional[str] = None
     DB_PASSWORD: Optional[str] = None
     
-    # Cognito 설정
-    COGNITO_USER_POOL_ID: str = "us-east-1_oesTGe9D5"
-    COGNITO_CLIENT_ID: str = "6ugujl077j6fmcqgptjmn91b7e"
+    # Cognito 설정 (환경 변수 또는 Secrets Manager에서)
+    COGNITO_USER_POOL_ID: Optional[str] = None
+    COGNITO_CLIENT_ID: Optional[str] = None
     
     # SES 설정
     SES_SENDER_EMAIL: str = "noreply@aws11.shop"
@@ -66,12 +67,42 @@ class Settings(BaseSettings):
     # API 설정
     API_BASE_URL: str = "https://api.aws11.shop"
     
-    # 캐시된 DB 설정
+    # 캐시된 설정
     _db_config: Optional[dict] = None
+    _app_config: Optional[dict] = None
     
     class Config:
         env_file = ".env"
         case_sensitive = True
+    
+    def _get_app_config(self) -> dict:
+        """애플리케이션 설정을 Secrets Manager에서 가져옵니다."""
+        if self._app_config is not None:
+            return self._app_config
+        
+        config = {}
+        
+        # Secrets Manager에서 가져오기 시도
+        if self.USE_SECRETS_MANAGER:
+            try:
+                secret = get_secret(self.APP_CONFIG_SECRET_NAME, self.AWS_REGION)
+                config = secret
+                logger.info(f"Loaded app config from Secrets Manager: {self.APP_CONFIG_SECRET_NAME}")
+            except Exception as e:
+                logger.warning(f"Failed to load app config from Secrets Manager: {e}")
+        
+        # 환경 변수로 오버라이드 (환경 변수가 우선)
+        if self.BEDROCK_FLOW_ID:
+            config["BEDROCK_FLOW_ID"] = self.BEDROCK_FLOW_ID
+        if self.BEDROCK_FLOW_ALIAS_ID:
+            config["BEDROCK_FLOW_ALIAS_ID"] = self.BEDROCK_FLOW_ALIAS_ID
+        if self.COGNITO_USER_POOL_ID:
+            config["COGNITO_USER_POOL_ID"] = self.COGNITO_USER_POOL_ID
+        if self.COGNITO_CLIENT_ID:
+            config["COGNITO_CLIENT_ID"] = self.COGNITO_CLIENT_ID
+        
+        self._app_config = config
+        return config
     
     def _get_db_config(self) -> dict:
         """DB 설정을 가져옵니다 (환경변수 + Secrets Manager에서 비밀번호만)."""
@@ -106,6 +137,26 @@ class Settings(BaseSettings):
         """SQLAlchemy 데이터베이스 URL을 반환합니다."""
         config = self._get_db_config()
         return f"postgresql://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+    
+    def get_bedrock_flow_id(self) -> str:
+        """Bedrock Flow ID를 반환합니다."""
+        config = self._get_app_config()
+        return config.get("BEDROCK_FLOW_ID", self.BEDROCK_FLOW_ID or "")
+    
+    def get_bedrock_flow_alias_id(self) -> str:
+        """Bedrock Flow Alias ID를 반환합니다."""
+        config = self._get_app_config()
+        return config.get("BEDROCK_FLOW_ALIAS_ID", self.BEDROCK_FLOW_ALIAS_ID or "")
+    
+    def get_cognito_user_pool_id(self) -> str:
+        """Cognito User Pool ID를 반환합니다."""
+        config = self._get_app_config()
+        return config.get("COGNITO_USER_POOL_ID", self.COGNITO_USER_POOL_ID or "")
+    
+    def get_cognito_client_id(self) -> str:
+        """Cognito Client ID를 반환합니다."""
+        config = self._get_app_config()
+        return config.get("COGNITO_CLIENT_ID", self.COGNITO_CLIENT_ID or "")
 
 
 @lru_cache()

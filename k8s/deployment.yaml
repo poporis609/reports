@@ -40,9 +40,14 @@ spec:
           value: "true"
         - name: DB_SECRET_NAME
           valueFrom:
-            secretKeyRef:
-              name: weekly-report-secrets
+            configMapKeyRef:
+              name: weekly-report-config
               key: db-secret-name
+        - name: APP_CONFIG_SECRET_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: app-config-secret-name
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
@@ -68,26 +73,6 @@ spec:
             configMapKeyRef:
               name: weekly-report-config
               key: aws-region
-        - name: BEDROCK_FLOW_ID
-          valueFrom:
-            secretKeyRef:
-              name: weekly-report-secrets
-              key: bedrock-flow-id
-        - name: BEDROCK_FLOW_ALIAS_ID
-          valueFrom:
-            secretKeyRef:
-              name: weekly-report-secrets
-              key: bedrock-flow-alias-id
-        - name: COGNITO_USER_POOL_ID
-          valueFrom:
-            secretKeyRef:
-              name: weekly-report-secrets
-              key: cognito-user-pool-id
-        - name: COGNITO_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: weekly-report-secrets
-              key: cognito-client-id
         - name: SES_SENDER_EMAIL
           valueFrom:
             configMapKeyRef:

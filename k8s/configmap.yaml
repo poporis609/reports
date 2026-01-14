@@ -8,6 +8,8 @@ data:
   db-port: "5432"
   db-name: "fproject_db"
   db-user: "fproject_user"
+  db-secret-name: "library-api/db-password"
+  app-config-secret-name: "weekly-report/app-config"
   aws-region: "us-east-1"
   ses-sender-email: "noreply@aws11.shop"
   api-base-url: "https://api.aws11.shop"
