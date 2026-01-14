@@ -68,21 +68,26 @@ Content-Type: application/json
   "daily_analysis": [
     {
       "date": "2026-01-06",
-      "score": 7,
-      "emotion": "행복",
+      "score": 7.0,
+      "sentiment": "행복",
       "diary_content": "오늘 좋은 일이 있었다...",
       "key_themes": ["운동", "친구"]
     }
   ],
   "patterns": [
     {
-      "factor": "운동",
+      "type": "activity",
+      "value": "운동",
       "correlation": "positive",
-      "average_score": 7.5,
-      "frequency": 3
+      "frequency": 3,
+      "average_score": 7.5
     }
   ],
-  "feedback": "이번 주는 전반적으로 긍정적인 한 주였습니다...",
+  "feedback": [
+    "2026-01-06에 감정 점수가 7.0점으로 높았습니다. 이 날의 긍정적인 경험을 기억하세요.",
+    "운동 활동이 3회 있었고, 평균 점수가 7.5점으로 높았습니다. 이 활동을 계속 유지하세요.",
+    "이번 주는 전반적으로 긍정적인 한 주였습니다. 좋은 습관을 계속 유지하세요!"
+  ],
   "has_partial_data": false,
   "created_at": "2026-01-14T10:30:00"
 }
@@ -160,7 +165,7 @@ Authorization: Bearer <access_token>
   "evaluation": "positive",
   "daily_analysis": [...],
   "patterns": [...],
-  "feedback": "...",
+  "feedback": ["...", "..."],
   "created_at": "2026-01-14T10:30:00"
 }
 ```
@@ -192,11 +197,15 @@ Authorization: Bearer <access_token>
   "reports": [
     {
       "id": 2,
+      "user_id": "44681408-c0b1-70f3-2d06-2a725f290f8b",
       "nickname": "poporis609@gmail.com",
       "week_start": "2026-01-06",
       "week_end": "2026-01-12",
       "average_score": 6.5,
       "evaluation": "positive",
+      "daily_analysis": [...],
+      "patterns": [...],
+      "feedback": ["...", "..."],
       "created_at": "2026-01-14T10:30:00"
     }
   ],
@@ -219,7 +228,7 @@ Authorization: Bearer <access_token>
 interface DailyAnalysis {
   date: string;           // YYYY-MM-DD
   score: number;          // 1-10 감정 점수
-  emotion: string;        // 주요 감정 (행복, 슬픔, 불안 등)
+  sentiment: string;      // 주요 감정 (행복, 슬픔, 불안 등)
   diary_content: string;  // 일기 내용 요약
   key_themes: string[];   // 주요 테마 (활동, 날씨 등)
 }
@@ -228,10 +237,11 @@ interface DailyAnalysis {
 ### Pattern (패턴)
 ```typescript
 interface Pattern {
-  factor: string;         // 요인 (운동, 날씨, 친구 등)
+  type: string;           // 패턴 유형 (activity | experience | weather)
+  value: string;          // 패턴 값 (운동, 날씨, 친구 등)
   correlation: string;    // positive | negative
-  average_score: number;  // 해당 요인 발생 시 평균 점수
   frequency: number;      // 발생 빈도
+  average_score: number;  // 해당 패턴 발생 시 평균 점수
 }
 ```
 
