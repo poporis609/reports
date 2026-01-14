@@ -74,27 +74,32 @@ class Settings(BaseSettings):
         case_sensitive = True
     
     def _get_db_config(self) -> dict:
-        """DB 설정을 가져옵니다 (Secrets Manager 또는 환경변수)."""
+        """DB 설정을 가져옵니다 (환경변수 + Secrets Manager에서 비밀번호만)."""
         if self._db_config is not None:
             return self._db_config
-            
-        if self.USE_SECRETS_MANAGER:
-            secret = get_secret(self.DB_SECRET_NAME, self.AWS_REGION)
-            self._db_config = {
-                "host": secret.get("host", self.DB_HOST),
-                "port": secret.get("port", self.DB_PORT),
-                "database": secret.get("database", secret.get("dbname", self.DB_NAME)),
-                "username": secret.get("username", self.DB_USER),
-                "password": secret.get("password", self.DB_PASSWORD),
-            }
-        else:
-            self._db_config = {
-                "host": self.DB_HOST,
-                "port": self.DB_PORT,
-                "database": self.DB_NAME,
-                "username": self.DB_USER,
-                "password": self.DB_PASSWORD,
-            }
+        
+        # 환경변수에서 기본 DB 정보 가져오기
+        password = self.DB_PASSWORD
+        
+        # Secrets Manager에서 비밀번호만 가져오기
+        if self.USE_SECRETS_MANAGER and not password:
+            try:
+                secret = get_secret(self.DB_SECRET_NAME, self.AWS_REGION)
+                # JSON이면 password 키에서, 아니면 전체 문자열이 비밀번호
+                if isinstance(secret, dict):
+                    password = secret.get("password", secret.get("SecretString", ""))
+                else:
+                    password = str(secret)
+            except Exception as e:
+                logger.warning(f"Secrets Manager에서 비밀번호 가져오기 실패: {e}")
+        
+        self._db_config = {
+            "host": self.DB_HOST,
+            "port": self.DB_PORT,
+            "database": self.DB_NAME,
+            "username": self.DB_USER,
+            "password": password,
+        }
         return self._db_config
     
     def get_database_url(self) -> str:

@@ -35,6 +35,14 @@ spec:
           value: "true"
         - name: DB_SECRET_NAME
           value: "library-api/db-password"
+        - name: DB_HOST
+          value: "fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "fproject_db"
+        - name: DB_USER
+          value: "fproject_user"
         - name: AWS_REGION
           value: "us-east-1"
         - name: BEDROCK_FLOW_ID
