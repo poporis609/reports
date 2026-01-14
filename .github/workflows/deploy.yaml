@@ -107,5 +107,12 @@ jobs:
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
           
-          # Wait for rollout
-          kubectl rollout status deployment/weekly-report --timeout=300s -n default
+          # Wait for rollout with detailed status
+          echo "Waiting for deployment to be ready..."
+          kubectl rollout status deployment/weekly-report --timeout=300s -n default || {
+            echo "Deployment failed. Checking pod status..."
+            kubectl get pods -n default -l app=weekly-report
+            kubectl describe pod -n default -l app=weekly-report
+            kubectl logs -n default -l app=weekly-report --tail=50 || true
+            exit 1
+          }

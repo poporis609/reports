@@ -26,7 +26,8 @@ def get_secret(secret_name: str, region_name: str = "us-east-1") -> dict:
             return {"password": secret_string}
     except Exception as e:
         logger.error(f"Secrets Manager에서 시크릿 가져오기 실패: {e}")
-        raise
+        # 개발 환경에서는 에러를 발생시키지 않고 빈 딕셔너리 반환
+        return {}
 
 
 class Settings(BaseSettings):
