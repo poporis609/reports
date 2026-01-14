@@ -12,7 +12,7 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: weekly-report
@@ -39,50 +39,23 @@ spec:
         - name: USE_SECRETS_MANAGER
           value: "true"
         - name: DB_SECRET_NAME
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: db-secret-name
+          value: "library-api/db-password"
         - name: APP_CONFIG_SECRET_NAME
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: app-config-secret-name
+          value: "weekly-report/app-config"
         - name: DB_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: db-host
+          value: "fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com"
         - name: DB_PORT
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: db-port
+          value: "5432"
         - name: DB_NAME
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: db-name
+          value: "fproject_db"
         - name: DB_USER
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: db-user
+          value: "fproject_user"
         - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: aws-region
+          value: "us-east-1"
         - name: SES_SENDER_EMAIL
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: ses-sender-email
+          value: "noreply@aws11.shop"
         - name: API_BASE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: weekly-report-config
-              key: api-base-url
+          value: "https://api.aws11.shop"
         resources:
           requests:
             memory: "256Mi"
@@ -94,18 +67,18 @@ spec:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 10
+          initialDelaySeconds: 20
           periodSeconds: 5
           timeoutSeconds: 3
-          failureThreshold: 3
+          failureThreshold: 5
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
