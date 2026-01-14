@@ -57,8 +57,8 @@ Content-Type: application/json
 ```json
 {
   "report_id": 1,
-  "user_id": "44681408-c0b1-70f3-2d06-2a725f290f8b",
-  "nickname": "poporis609@gmail.com",
+  "user_id": "[user_id]",
+  "nickname": "user@example.com",
   "week_period": {
     "start": "2026-01-06",
     "end": "2026-01-12"
@@ -112,18 +112,18 @@ GET /report/create/{nickname}
 ```
 
 **Path Parameters**
-- `nickname`: Cognito preferred_username (예: `poporis609@gmail.com`)
+- `nickname`: Cognito preferred_username (예: `user@example.com`)
 
 **Response** `200 OK`
 ```json
 {
   "report_id": 1,
-  "nickname": "poporis609@gmail.com",
+  "nickname": "user@example.com",
   "created_at": "2026-01-14T10:30:00",
   "summary": {
     "diary_content": ["오늘 좋은 일이...", "비가 와서..."],
     "current_date": "2026-01-14T15:00:00",
-    "author_nickname": "poporis609@gmail.com",
+    "author_nickname": "user@example.com",
     "average_score": 6.5,
     "evaluation": "positive",
     "week_period": {
@@ -157,8 +157,8 @@ Authorization: Bearer <access_token>
 ```json
 {
   "id": 1,
-  "user_id": "44681408-c0b1-70f3-2d06-2a725f290f8b",
-  "nickname": "poporis609@gmail.com",
+  "user_id": "[user_id]",
+  "nickname": "user@example.com",
   "week_start": "2026-01-06",
   "week_end": "2026-01-12",
   "average_score": 6.5,
@@ -197,8 +197,8 @@ Authorization: Bearer <access_token>
   "reports": [
     {
       "id": 2,
-      "user_id": "44681408-c0b1-70f3-2d06-2a725f290f8b",
-      "nickname": "poporis609@gmail.com",
+      "user_id": "[user_id]",
+      "nickname": "user@example.com",
       "week_start": "2026-01-06",
       "week_end": "2026-01-12",
       "average_score": 6.5,
