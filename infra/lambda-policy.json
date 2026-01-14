@@ -8,7 +8,7 @@
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:*:*:*"
+      "Resource": "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/weekly-report-*"
     },
     {
       "Effect": "Allow",
@@ -23,7 +23,7 @@
         "cognito-idp:AdminGetUser",
         "cognito-idp:ListUsers"
       ],
-      "Resource": "arn:aws:cognito-idp:us-east-1:*:userpool/us-east-1_oesTGe9D5"
+      "Resource": "arn:aws:cognito-idp:us-east-1:*:userpool/*"
     },
     {
       "Effect": "Allow",
@@ -31,7 +31,10 @@
         "bedrock:InvokeModel",
         "bedrock:InvokeFlow"
       ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:bedrock:us-east-1:*:flow/*",
+        "arn:aws:bedrock:us-east-1::foundation-model/*"
+      ]
     },
     {
       "Effect": "Allow",
@@ -39,16 +42,23 @@
         "ses:SendEmail",
         "ses:SendRawEmail"
       ],
-      "Resource": "*"
+      "Resource": "arn:aws:ses:us-east-1:*:identity/*"
     },
     {
       "Effect": "Allow",
       "Action": [
         "ec2:CreateNetworkInterface",
         "ec2:DescribeNetworkInterfaces",
-        "ec2:DeleteNetworkInterface"
+        "ec2:DeleteNetworkInterface",
+        "ec2:AssignPrivateIpAddresses",
+        "ec2:UnassignPrivateIpAddresses"
       ],
-      "Resource": "*"
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:Vpc": "arn:aws:ec2:us-east-1:*:vpc/*"
+        }
+      }
     }
   ]
 }

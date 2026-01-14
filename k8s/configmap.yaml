@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weekly-report-config
+  namespace: default
+data:
+  db-host: "fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com"
+  db-port: "5432"
+  db-name: "fproject_db"
+  db-user: "fproject_user"
+  aws-region: "us-east-1"
+  ses-sender-email: "noreply@aws11.shop"
+  api-base-url: "https://api.aws11.shop"

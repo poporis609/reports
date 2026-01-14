@@ -35,6 +35,11 @@ env/
 # Environment
 .env
 .env.local
+.env.production
+
+# Kubernetes Secrets
+k8s/secret.yaml
+k8s/*-secret.yaml
 
 # Testing
 .pytest_cache/

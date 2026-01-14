@@ -91,11 +91,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Update image tag in deployment
-          sed -i "s|324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:latest|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/deployment.yaml
+          export ECR_REPOSITORY=$ECR_REPOSITORY
+          envsubst < k8s/deployment.yaml | kubectl apply -f -
           
           # Apply Kubernetes manifests
           kubectl apply -f k8s/serviceaccount.yaml
-          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
           

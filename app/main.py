@@ -18,12 +18,25 @@ app = FastAPI(
 )
 
 # CORS 설정
+allowed_origins = [
+    "https://aws11.shop",
+    "https://api.aws11.shop",
+    "https://www.aws11.shop",
+]
+
+# 개발 환경에서만 localhost 허용
+if settings.DEBUG:
+    allowed_origins.extend([
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # 라우터 등록

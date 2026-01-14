@@ -20,7 +20,7 @@ spec:
       serviceAccountName: weekly-report-sa
       containers:
       - name: weekly-report
-        image: 324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:latest
+        image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
         ports:
         - containerPort: 8000
           name: http
@@ -34,29 +34,65 @@ spec:
         - name: USE_SECRETS_MANAGER
           value: "true"
         - name: DB_SECRET_NAME
-          value: "library-api/db-password"
+          valueFrom:
+            secretKeyRef:
+              name: weekly-report-secrets
+              key: db-secret-name
         - name: DB_HOST
-          value: "fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: db-host
         - name: DB_PORT
-          value: "5432"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: db-port
         - name: DB_NAME
-          value: "fproject_db"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: db-name
         - name: DB_USER
-          value: "fproject_user"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: db-user
         - name: AWS_REGION
-          value: "us-east-1"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: aws-region
         - name: BEDROCK_FLOW_ID
-          value: "BZKT7TJGPT"
+          valueFrom:
+            secretKeyRef:
+              name: weekly-report-secrets
+              key: bedrock-flow-id
         - name: BEDROCK_FLOW_ALIAS_ID
-          value: "QENFHYZ1KE"
+          valueFrom:
+            secretKeyRef:
+              name: weekly-report-secrets
+              key: bedrock-flow-alias-id
         - name: COGNITO_USER_POOL_ID
-          value: "us-east-1_oesTGe9D5"
+          valueFrom:
+            secretKeyRef:
+              name: weekly-report-secrets
+              key: cognito-user-pool-id
         - name: COGNITO_CLIENT_ID
-          value: "6ugujl077j6fmcqgptjmn91b7e"
+          valueFrom:
+            secretKeyRef:
+              name: weekly-report-secrets
+              key: cognito-client-id
         - name: SES_SENDER_EMAIL
-          value: "noreply@aws11.shop"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: ses-sender-email
         - name: API_BASE_URL
-          value: "https://api.aws11.shop"
+          valueFrom:
+            configMapKeyRef:
+              name: weekly-report-config
+              key: api-base-url
         resources:
           requests:
             memory: "256Mi"
@@ -81,3 +117,6 @@ spec:
           readOnlyRootFilesystem: false
           runAsNonRoot: true
           runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
