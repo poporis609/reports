@@ -8,6 +8,11 @@ metadata:
     version: v1
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: weekly-report
@@ -102,16 +107,20 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /report/health
+            path: /health
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /report/health
+            path: /health
             port: 8000
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
