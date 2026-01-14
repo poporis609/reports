@@ -99,9 +99,10 @@ jobs:
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/serviceaccount.yaml
           
-          # Update image tag in deployment and apply
-          export ECR_REPOSITORY=$ECR_REPOSITORY
-          envsubst < k8s/deployment.yaml | kubectl apply -f -
+          # Update deployment with new image tag
+          kubectl set image deployment/weekly-report \
+            weekly-report=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -n default
           
           # Apply service and ingress
           kubectl apply -f k8s/service.yaml
