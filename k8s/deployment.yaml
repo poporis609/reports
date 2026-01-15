@@ -58,11 +58,11 @@ spec:
           value: "https://api.aws11.shop"
         resources:
           requests:
+            memory: "128Mi"
+            cpu: "125m"
+          limits:
             memory: "256Mi"
             cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /health
