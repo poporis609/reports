@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # Bedrock Flow 설정 (환경 변수 또는 Secrets Manager에서)
     BEDROCK_FLOW_ID: Optional[str] = None
     BEDROCK_FLOW_ALIAS_ID: Optional[str] = None
-    BEDROCK_TIMEOUT: int = 30
+    BEDROCK_TIMEOUT: int = 300  # 5분 (Bedrock Flow는 1-2분 소요)
     
     # 데이터베이스 설정 (Secrets Manager 미사용 시)
     DB_HOST: Optional[str] = None

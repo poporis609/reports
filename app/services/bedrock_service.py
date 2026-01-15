@@ -4,6 +4,7 @@ Bedrock 서비스 - AI 감정 분석
 import json
 import boto3
 import time
+from botocore.config import Config
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import date
@@ -45,13 +46,21 @@ class BedrockService:
     
     def __init__(self):
         self.settings = get_settings()
+        self.timeout = self.settings.BEDROCK_TIMEOUT
+        
+        # boto3 클라이언트에 타임아웃 설정 적용
+        config = Config(
+            read_timeout=self.timeout,
+            connect_timeout=30,
+            retries={'max_attempts': 0}  # 자체 재시도 로직 사용
+        )
         self.client = boto3.client(
             "bedrock-agent-runtime",
-            region_name=self.settings.AWS_REGION
+            region_name=self.settings.AWS_REGION,
+            config=config
         )
         self.flow_id = self.settings.get_bedrock_flow_id()
         self.flow_alias_id = self.settings.get_bedrock_flow_alias_id()
-        self.timeout = self.settings.BEDROCK_TIMEOUT
     
     def format_entries_for_bedrock(
         self,
