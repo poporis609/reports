@@ -20,7 +20,7 @@ class S3ServiceError(Exception):
 class S3Service:
     """AWS S3를 사용한 리포트 파일 관리 서비스"""
     
-    BUCKET_NAME = "knowledge-base-test-6577574"
+    BUCKET_NAME = "knowledge-base-test-6575574"
     
     def __init__(self):
         self.settings = get_settings()
