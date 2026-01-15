@@ -26,7 +26,8 @@ class ReportRepository:
         daily_analysis: List[Dict[str, Any]],
         patterns: List[Dict[str, Any]],
         feedback: List[str],
-        s3_key: Optional[str] = None
+        s3_key: Optional[str] = None,
+        status: str = "completed"
     ) -> WeeklyReport:
         """
         새 주간 리포트를 저장합니다.
@@ -42,6 +43,7 @@ class ReportRepository:
             patterns: 패턴 분석 결과
             feedback: 피드백 목록
             s3_key: S3 저장 경로
+            status: 상태 ('processing' | 'completed' | 'failed')
             
         Returns:
             저장된 리포트
@@ -64,6 +66,56 @@ class ReportRepository:
         self.db.commit()
         self.db.refresh(report)
         
+        return report
+    
+    def update_report(
+        self,
+        report_id: int,
+        average_score: float,
+        evaluation: str,
+        daily_analysis: List[Dict[str, Any]],
+        patterns: List[Dict[str, Any]],
+        feedback: List[str],
+        s3_key: Optional[str] = None,
+        status: str = "completed"
+    ) -> Optional[WeeklyReport]:
+        """
+        리포트를 업데이트합니다.
+        """
+        report = self.get_report_by_id(report_id)
+        if not report:
+            return None
+        
+        report.average_score = average_score
+        report.evaluation = evaluation
+        report.daily_analysis = daily_analysis
+        report.patterns = patterns
+        report.feedback = feedback
+        if s3_key:
+            report.s3_key = s3_key
+        
+        self.db.commit()
+        self.db.refresh(report)
+        return report
+    
+    def update_report_status(
+        self,
+        report_id: int,
+        status: str,
+        error_message: Optional[str] = None
+    ) -> Optional[WeeklyReport]:
+        """
+        리포트 상태를 업데이트합니다.
+        """
+        report = self.get_report_by_id(report_id)
+        if not report:
+            return None
+        
+        if error_message:
+            report.feedback = error_message
+        
+        self.db.commit()
+        self.db.refresh(report)
         return report
     
     def get_latest_report_by_user(self, user_id: str) -> Optional[WeeklyReport]:
