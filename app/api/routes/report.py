@@ -1,5 +1,5 @@
 """
-리포트 API 라우터
+리포트 API 라우터 - 주간 감정 분석 리포트 생성 및 조회
 """
 import logging
 from datetime import date, datetime
