@@ -70,9 +70,14 @@ class BedrockService:
         """
         documents = []
         for entry in entries:
+            record_date = entry.get("record_date", "")
+            # date 객체를 문자열로 변환
+            if isinstance(record_date, date):
+                record_date = record_date.isoformat()
+            
             doc = {
                 "diaryContent": entry.get("content", ""),
-                "createdDate": entry.get("record_date", ""),
+                "createdDate": str(record_date),
                 "authorNickname": nickname,
             }
             # 태그가 있으면 추가
