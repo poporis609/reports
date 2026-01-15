@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 class CreateReportRequest(BaseModel):
     """리포트 생성 요청"""
+    user_id: str = Field(..., description="사용자 ID (Cognito sub)")
     start_date: Optional[date] = Field(None, description="분석 시작일 (기본값: 지난 주 월요일)")
     end_date: Optional[date] = Field(None, description="분석 종료일 (기본값: 지난 주 일요일)")
 

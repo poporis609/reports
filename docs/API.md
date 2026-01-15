@@ -6,11 +6,7 @@ https://api.aws11.shop
 ```
 
 ## 인증
-Cognito JWT 토큰을 `Authorization` 헤더에 Bearer 형식으로 전달합니다.
-
-```
-Authorization: Bearer <access_token>
-```
+user_id를 요청 파라미터로 전달합니다.
 
 ---
 
@@ -45,22 +41,23 @@ GET /report/health
 ---
 
 ### 3. 주간 리포트 생성
-인증된 사용자의 일기를 분석하여 주간 리포트를 생성합니다.
+사용자의 일기를 분석하여 주간 리포트를 생성합니다.
 
 **Request**
 ```
 POST /report/create
-Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
-**Request Body** (선택)
+**Request Body**
 ```json
 {
+  "user_id": "google_108508554405832861998",
   "start_date": "2026-01-06",
   "end_date": "2026-01-12"
 }
 ```
+- `user_id`: 사용자 ID (필수)
 - `start_date`, `end_date`: 분석 기간 (생략 시 지난 주 월~일 자동 계산)
 
 **Response** `200 OK`
@@ -109,8 +106,8 @@ Content-Type: application/json
 **Error Responses**
 | 상태 코드 | 설명 |
 |----------|------|
-| 400 | 분석 기간에 일기가 없음 |
-| 401 | 인증 실패 (토큰 없음/만료) |
+| 400 | user_id 누락 또는 분석 기간에 일기가 없음 |
+| 404 | 사용자를 찾을 수 없음 |
 | 503 | AI 분석 서비스 일시 불가 |
 | 504 | AI 분석 타임아웃 |
 
@@ -155,13 +152,15 @@ GET /report/search/{nickname}
 ---
 
 ### 5. 리포트 상세 조회
-리포트 ID로 상세 정보를 조회합니다. (본인 리포트만 조회 가능)
+리포트 ID로 상세 정보를 조회합니다.
 
 **Request**
 ```
-GET /report/{report_id}
-Authorization: Bearer <access_token>
+GET /report/{report_id}?user_id=google_108508554405832861998
 ```
+
+**Query Parameters**
+- `user_id`: 사용자 ID (필수)
 
 **Path Parameters**
 - `report_id`: 리포트 ID (정수)
@@ -187,20 +186,21 @@ Authorization: Bearer <access_token>
 **Error Responses**
 | 상태 코드 | 설명 |
 |----------|------|
-| 401 | 인증 실패 |
 | 403 | 다른 사용자의 리포트 접근 시도 |
 | 404 | 리포트를 찾을 수 없음 |
 
 ---
 
 ### 6. 리포트 파일 조회
-S3에 저장된 리포트 파일 내용을 조회합니다. (본인 리포트만 조회 가능)
+S3에 저장된 리포트 파일 내용을 조회합니다.
 
 **Request**
 ```
-GET /report/{report_id}/file
-Authorization: Bearer <access_token>
+GET /report/{report_id}/file?user_id=google_108508554405832861998
 ```
+
+**Query Parameters**
+- `user_id`: 사용자 ID (필수)
 
 **Path Parameters**
 - `report_id`: 리포트 ID (정수)
@@ -217,7 +217,6 @@ Authorization: Bearer <access_token>
 **Error Responses**
 | 상태 코드 | 설명 |
 |----------|------|
-| 401 | 인증 실패 |
 | 403 | 다른 사용자의 리포트 접근 시도 |
 | 404 | 리포트 또는 파일을 찾을 수 없음 |
 
@@ -228,9 +227,11 @@ S3 리포트 파일의 다운로드 URL을 생성합니다. (1시간 유효)
 
 **Request**
 ```
-GET /report/{report_id}/download-url
-Authorization: Bearer <access_token>
+GET /report/{report_id}/download-url?user_id=google_108508554405832861998
 ```
+
+**Query Parameters**
+- `user_id`: 사용자 ID (필수)
 
 **Path Parameters**
 - `report_id`: 리포트 ID (정수)
@@ -247,22 +248,21 @@ Authorization: Bearer <access_token>
 **Error Responses**
 | 상태 코드 | 설명 |
 |----------|------|
-| 401 | 인증 실패 |
 | 403 | 다른 사용자의 리포트 접근 시도 |
 | 404 | 리포트 또는 파일을 찾을 수 없음 |
 
 ---
 
 ### 8. 내 리포트 목록 조회
-인증된 사용자의 리포트 목록을 조회합니다.
+사용자의 리포트 목록을 조회합니다.
 
 **Request**
 ```
-GET /report/?limit=10
-Authorization: Bearer <access_token>
+GET /report/?user_id=google_108508554405832861998&limit=10
 ```
 
 **Query Parameters**
+- `user_id`: 사용자 ID (필수)
 - `limit`: 조회할 개수 (기본값: 10)
 
 **Response** `200 OK`
@@ -384,27 +384,7 @@ interface Pattern {
 | Client ID | `[AWS Secrets Manager에서 관리]` |
 | Region | `us-east-1` |
 
-### 토큰 사용 예시 (JavaScript)
-```javascript
-// Amplify 사용 시
-import { Auth } from 'aws-amplify';
-
-const session = await Auth.currentSession();
-const token = session.getAccessToken().getJwtToken();
-
-// API 호출
-const response = await fetch('https://api.aws11.shop/report/create', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    start_date: '2026-01-06',
-    end_date: '2026-01-12'
-  })
-});
-```
+Cognito 로그인 후 받은 `sub` 값을 `user_id`로 사용하세요.
 
 ---
 
@@ -420,9 +400,8 @@ const response = await fetch('https://api.aws11.shop/report/create', {
 
 | 상태 코드 | 설명 |
 |----------|------|
-| 400 | 잘못된 요청 (날짜 형식 오류, 데이터 없음 등) |
-| 401 | 인증 실패 |
-| 403 | 권한 없음 |
+| 400 | 잘못된 요청 (날짜 형식 오류, user_id 누락 등) |
+| 403 | 권한 없음 (다른 사용자 데이터 접근) |
 | 404 | 리소스를 찾을 수 없음 |
 | 500 | 서버 내부 오류 |
 | 503 | 서비스 일시 불가 (Retry-After 헤더 포함) |

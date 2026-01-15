@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.api.dependencies import get_current_user
 from app.api.schemas import (
     CreateReportRequest,
     CreateReportResponse,
@@ -16,7 +15,7 @@ from app.api.schemas import (
     DailyAnalysisResponse,
     PatternResponse,
 )
-from app.services.cognito_service import UserInfo, get_cognito_service, CognitoService
+from app.services.cognito_service import get_cognito_service, CognitoService
 from app.services.bedrock_service import get_bedrock_service, BedrockService, BedrockServiceError, BedrockTimeoutError
 from app.services.report_service import ReportAnalysisService
 from app.services.email_service import get_email_service, EmailService
@@ -50,25 +49,43 @@ def _send_email_background(
 async def create_report(
     request: CreateReportRequest,
     background_tasks: BackgroundTasks,
-    current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db),
     bedrock: BedrockService = Depends(get_bedrock_service),
     email_service: EmailService = Depends(get_email_service),
     s3_service: S3Service = Depends(get_s3_service),
+    cognito: CognitoService = Depends(get_cognito_service),
 ):
     """
     주간 리포트를 생성합니다.
     
-    - 인증된 사용자의 일기를 분석하여 주간 리포트를 생성합니다.
+    - user_id를 받아서 해당 사용자의 일기를 분석하여 주간 리포트를 생성합니다.
     - 분석 기간을 지정하지 않으면 지난 주(월~일)를 분석합니다.
     - 리포트는 S3에 텍스트 파일로 저장됩니다.
     - 리포트 생성 완료 시 이메일 알림을 발송합니다.
     """
+    # user_id 필수 체크
+    if not request.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id는 필수입니다"
+        )
+    
     # 리포지토리 초기화
     history_repo = HistoryRepository(db)
     user_repo = UserRepository(db)
     report_repo = ReportRepository(db)
     report_service = ReportAnalysisService()
+    
+    # 사용자 정보 조회
+    user = user_repo.get_user_by_id(request.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+    
+    nickname = user.nickname or user.email
+    email = user.email
     
     # 분석 기간 결정
     if request.start_date and request.end_date:
@@ -86,7 +103,7 @@ async def create_report(
     
     # 일기 항목 조회
     entries = history_repo.get_entries_by_user_and_period(
-        current_user.user_id, week_start, week_end
+        request.user_id, week_start, week_end
     )
     
     if not entries:
@@ -108,12 +125,12 @@ async def create_report(
     
     try:
         # Bedrock 감정 분석
-        analysis = bedrock.analyze_sentiment(entry_dicts, current_user.nickname)
+        analysis = bedrock.analyze_sentiment(entry_dicts, nickname)
         
         # 리포트 생성
         report_result = report_service.generate_report(
-            user_id=current_user.user_id,
-            nickname=current_user.nickname,
+            user_id=request.user_id,
+            nickname=nickname,
             week_start=week_start,
             week_end=week_end,
             entries=entry_dicts,
@@ -138,7 +155,7 @@ async def create_report(
         
         try:
             s3_key = s3_service.upload_report(
-                user_id=current_user.user_id,
+                user_id=request.user_id,
                 report_data=report_data_for_s3,
                 created_at=created_at
             )
@@ -164,7 +181,7 @@ async def create_report(
         background_tasks.add_task(
             _send_email_background,
             email_service,
-            current_user.email,
+            email,
             report_result
         )
         
@@ -272,13 +289,13 @@ async def get_report_by_nickname(
 @router.get("/{report_id}")
 async def get_report_by_id(
     report_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    user_id: str,
     db: Session = Depends(get_db),
 ):
     """
     리포트 ID로 상세 리포트를 조회합니다.
     
-    - 인증된 사용자 본인의 리포트만 조회할 수 있습니다.
+    - user_id를 제공하여 본인의 리포트만 조회할 수 있습니다.
     """
     report_repo = ReportRepository(db)
     report = report_repo.get_report_by_id(report_id)
@@ -290,7 +307,7 @@ async def get_report_by_id(
         )
     
     # 본인 리포트인지 확인
-    if report.user_id != current_user.user_id:
+    if report.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="다른 사용자의 리포트에 접근할 수 없습니다"
@@ -301,15 +318,15 @@ async def get_report_by_id(
 
 @router.get("/")
 async def get_my_reports(
+    user_id: str,
     limit: int = 10,
-    current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     내 리포트 목록을 조회합니다.
     """
     report_repo = ReportRepository(db)
-    reports = report_repo.get_reports_by_user(current_user.user_id, limit)
+    reports = report_repo.get_reports_by_user(user_id, limit)
     
     return {
         "reports": [r.to_dict() for r in reports],
@@ -320,14 +337,14 @@ async def get_my_reports(
 @router.get("/{report_id}/file")
 async def get_report_file(
     report_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    user_id: str,
     db: Session = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
 ):
     """
     리포트 파일(S3)을 조회합니다.
     
-    - 인증된 사용자 본인의 리포트 파일만 조회할 수 있습니다.
+    - user_id를 제공하여 본인의 리포트 파일만 조회할 수 있습니다.
     - S3에 저장된 텍스트 파일 내용을 반환합니다.
     """
     report_repo = ReportRepository(db)
@@ -340,7 +357,7 @@ async def get_report_file(
         )
     
     # 본인 리포트인지 확인
-    if report.user_id != current_user.user_id:
+    if report.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="다른 사용자의 리포트에 접근할 수 없습니다"
@@ -370,14 +387,14 @@ async def get_report_file(
 @router.get("/{report_id}/download-url")
 async def get_report_download_url(
     report_id: int,
-    current_user: UserInfo = Depends(get_current_user),
+    user_id: str,
     db: Session = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
 ):
     """
     리포트 파일 다운로드 URL을 생성합니다.
     
-    - 인증된 사용자 본인의 리포트만 다운로드할 수 있습니다.
+    - user_id를 제공하여 본인의 리포트만 다운로드할 수 있습니다.
     - 1시간 동안 유효한 presigned URL을 반환합니다.
     """
     report_repo = ReportRepository(db)
@@ -390,7 +407,7 @@ async def get_report_download_url(
         )
     
     # 본인 리포트인지 확인
-    if report.user_id != current_user.user_id:
+    if report.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="다른 사용자의 리포트에 접근할 수 없습니다"
