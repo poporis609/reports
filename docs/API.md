@@ -121,7 +121,7 @@ Content-Type: application/json
 
 **Request**
 ```
-GET /report/create/{nickname}
+GET /report/search/{nickname}
 ```
 
 **Path Parameters**

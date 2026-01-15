@@ -211,7 +211,7 @@ async def create_report(
         )
 
 
-@router.get("/create/{nickname}", response_model=ReportSummaryResponse)
+@router.get("/search/{nickname}", response_model=ReportSummaryResponse)
 async def get_report_by_nickname(
     nickname: str,
     db: Session = Depends(get_db),
