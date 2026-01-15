@@ -41,6 +41,7 @@ class WeeklyReport(Base):
     patterns: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     feedback: Mapped[List[str]] = mapped_column(JSONB, nullable=False)
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="completed")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -69,5 +70,6 @@ class WeeklyReport(Base):
             "patterns": self.patterns,
             "feedback": self.feedback,
             "s3_key": self.s3_key,
+            "status": self.status or "completed",
             "created_at": self.created_at.isoformat(),
         }

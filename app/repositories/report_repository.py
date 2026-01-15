@@ -59,6 +59,7 @@ class ReportRepository:
             patterns=patterns,
             feedback=feedback,
             s3_key=s3_key,
+            status=status,
             created_at=datetime.utcnow()
         )
         
@@ -91,6 +92,7 @@ class ReportRepository:
         report.daily_analysis = daily_analysis
         report.patterns = patterns
         report.feedback = feedback
+        report.status = status
         if s3_key:
             report.s3_key = s3_key
         
@@ -111,8 +113,9 @@ class ReportRepository:
         if not report:
             return None
         
+        report.status = status
         if error_message:
-            report.feedback = error_message
+            report.feedback = [error_message]
         
         self.db.commit()
         self.db.refresh(report)

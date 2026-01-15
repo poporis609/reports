@@ -198,17 +198,17 @@ async def create_report(
         for e in entries
     ]
     
-    # "처리 중" 상태로 리포트 생성
+    # "처리 중" 상태로 리포트 생성 (evaluation은 CHECK 제약조건 때문에 'positive' 사용)
     saved_report = report_repo.save_report(
         user_id=request.user_id,
         nickname=nickname,
         week_start=week_start,
         week_end=week_end,
         average_score=0.0,
-        evaluation="분석 중...",
+        evaluation="positive",
         daily_analysis=[],
         patterns=[],
-        feedback="리포트를 생성하고 있습니다. 잠시만 기다려주세요.",
+        feedback=["리포트를 생성하고 있습니다. 잠시만 기다려주세요."],
         s3_key=None,
         status="processing"
     )
