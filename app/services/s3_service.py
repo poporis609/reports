@@ -32,13 +32,13 @@ class S3Service:
     def _generate_s3_key(self, user_id: str, created_at: datetime) -> str:
         """
         S3 키를 생성합니다.
-        형식: {cognito_sub}/{년도}/{월}/report_{작성일}.txt
+        형식: {cognito_sub}/report/{년도}/{월}/report_{작성일}.txt
         """
         year = created_at.strftime("%Y")
         month = created_at.strftime("%m")
         date_str = created_at.strftime("%Y-%m-%d")
         
-        return f"{user_id}/{year}/{month}/report_{date_str}.txt"
+        return f"{user_id}/report/{year}/{month}/report_{date_str}.txt"
     
     def _format_report_content(self, report_data: dict) -> str:
         """
