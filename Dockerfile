@@ -27,5 +27,5 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # 포트 노출
 EXPOSE 8000
 
-# FastAPI 서버 실행
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# FastAPI 서버 실행 (worker 2개로 health check 블로킹 방지)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
