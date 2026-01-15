@@ -20,6 +20,7 @@ from app.services.cognito_service import UserInfo, get_cognito_service, CognitoS
 from app.services.bedrock_service import get_bedrock_service, BedrockService, BedrockServiceError, BedrockTimeoutError
 from app.services.report_service import ReportAnalysisService
 from app.services.email_service import get_email_service, EmailService
+from app.services.s3_service import get_s3_service, S3Service, S3ServiceError
 from app.repositories import HistoryRepository, UserRepository, ReportRepository
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,14 @@ async def create_report(
     db: Session = Depends(get_db),
     bedrock: BedrockService = Depends(get_bedrock_service),
     email_service: EmailService = Depends(get_email_service),
+    s3_service: S3Service = Depends(get_s3_service),
 ):
     """
     주간 리포트를 생성합니다.
     
     - 인증된 사용자의 일기를 분석하여 주간 리포트를 생성합니다.
     - 분석 기간을 지정하지 않으면 지난 주(월~일)를 분석합니다.
+    - 리포트는 S3에 텍스트 파일로 저장됩니다.
     - 리포트 생성 완료 시 이메일 알림을 발송합니다.
     """
     # 리포지토리 초기화
@@ -117,6 +120,32 @@ async def create_report(
             analysis=analysis
         )
         
+        # 현재 시간
+        created_at = datetime.utcnow()
+        
+        # S3에 리포트 저장
+        report_data_for_s3 = {
+            "nickname": report_result.nickname,
+            "week_start": report_result.week_start.isoformat(),
+            "week_end": report_result.week_end.isoformat(),
+            "average_score": report_result.average_score,
+            "evaluation": report_result.evaluation,
+            "daily_analysis": [d.to_dict() for d in report_result.daily_analysis],
+            "patterns": [p.to_dict() for p in report_result.patterns],
+            "feedback": report_result.feedback,
+            "created_at": created_at.isoformat()
+        }
+        
+        try:
+            s3_key = s3_service.upload_report(
+                user_id=current_user.user_id,
+                report_data=report_data_for_s3,
+                created_at=created_at
+            )
+        except S3ServiceError as e:
+            logger.warning(f"S3 업로드 실패, DB에만 저장: {e}")
+            s3_key = None
+        
         # DB에 저장
         saved_report = report_repo.save_report(
             user_id=report_result.user_id,
@@ -127,7 +156,8 @@ async def create_report(
             evaluation=report_result.evaluation,
             daily_analysis=[d.to_dict() for d in report_result.daily_analysis],
             patterns=[p.to_dict() for p in report_result.patterns],
-            feedback=report_result.feedback
+            feedback=report_result.feedback,
+            s3_key=s3_key
         )
         
         # 백그라운드에서 이메일 발송
@@ -157,7 +187,8 @@ async def create_report(
             ],
             feedback=saved_report.feedback,
             has_partial_data=report_result.has_partial_data,
-            created_at=saved_report.created_at.isoformat()
+            created_at=saved_report.created_at.isoformat(),
+            s3_key=saved_report.s3_key
         )
         
     except BedrockTimeoutError:
@@ -284,3 +315,103 @@ async def get_my_reports(
         "reports": [r.to_dict() for r in reports],
         "total": len(reports)
     }
+
+
+@router.get("/{report_id}/file")
+async def get_report_file(
+    report_id: int,
+    current_user: UserInfo = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    s3_service: S3Service = Depends(get_s3_service),
+):
+    """
+    리포트 파일(S3)을 조회합니다.
+    
+    - 인증된 사용자 본인의 리포트 파일만 조회할 수 있습니다.
+    - S3에 저장된 텍스트 파일 내용을 반환합니다.
+    """
+    report_repo = ReportRepository(db)
+    report = report_repo.get_report_by_id(report_id)
+    
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="리포트를 찾을 수 없습니다"
+        )
+    
+    # 본인 리포트인지 확인
+    if report.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="다른 사용자의 리포트에 접근할 수 없습니다"
+        )
+    
+    # S3 키 확인
+    if not report.s3_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="리포트 파일이 존재하지 않습니다"
+        )
+    
+    try:
+        content = s3_service.get_report(report.s3_key)
+        return {
+            "report_id": report_id,
+            "s3_key": report.s3_key,
+            "content": content
+        }
+    except S3ServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/{report_id}/download-url")
+async def get_report_download_url(
+    report_id: int,
+    current_user: UserInfo = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    s3_service: S3Service = Depends(get_s3_service),
+):
+    """
+    리포트 파일 다운로드 URL을 생성합니다.
+    
+    - 인증된 사용자 본인의 리포트만 다운로드할 수 있습니다.
+    - 1시간 동안 유효한 presigned URL을 반환합니다.
+    """
+    report_repo = ReportRepository(db)
+    report = report_repo.get_report_by_id(report_id)
+    
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="리포트를 찾을 수 없습니다"
+        )
+    
+    # 본인 리포트인지 확인
+    if report.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="다른 사용자의 리포트에 접근할 수 없습니다"
+        )
+    
+    # S3 키 확인
+    if not report.s3_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="리포트 파일이 존재하지 않습니다"
+        )
+    
+    try:
+        download_url = s3_service.generate_presigned_url(report.s3_key)
+        return {
+            "report_id": report_id,
+            "download_url": download_url,
+            "expires_in": 3600
+        }
+    except S3ServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

@@ -2,8 +2,8 @@
 WeeklyReport 모델 - 주간 리포트 테이블 (신규 생성)
 """
 from datetime import date, datetime
-from typing import List, Dict, Any
-from sqlalchemy import Integer, String, Date, DateTime, Numeric, CheckConstraint
+from typing import List, Dict, Any, Optional
+from sqlalchemy import Integer, String, Date, DateTime, Numeric, CheckConstraint, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,7 @@ class WeeklyReport(Base):
         daily_analysis: 일별 분석 결과 (JSONB)
         patterns: 패턴 분석 결과 (JSONB)
         feedback: 피드백 목록 (JSONB)
+        s3_key: S3 저장 경로
         created_at: 생성 시간
     """
     __tablename__ = "weekly_reports"
@@ -39,6 +40,7 @@ class WeeklyReport(Base):
     daily_analysis: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     patterns: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     feedback: Mapped[List[str]] = mapped_column(JSONB, nullable=False)
+    s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -66,5 +68,6 @@ class WeeklyReport(Base):
             "daily_analysis": self.daily_analysis,
             "patterns": self.patterns,
             "feedback": self.feedback,
+            "s3_key": self.s3_key,
             "created_at": self.created_at.isoformat(),
         }

@@ -25,7 +25,8 @@ class ReportRepository:
         evaluation: str,
         daily_analysis: List[Dict[str, Any]],
         patterns: List[Dict[str, Any]],
-        feedback: List[str]
+        feedback: List[str],
+        s3_key: Optional[str] = None
     ) -> WeeklyReport:
         """
         새 주간 리포트를 저장합니다.
@@ -40,6 +41,7 @@ class ReportRepository:
             daily_analysis: 일별 분석 결과
             patterns: 패턴 분석 결과
             feedback: 피드백 목록
+            s3_key: S3 저장 경로
             
         Returns:
             저장된 리포트
@@ -54,6 +56,7 @@ class ReportRepository:
             daily_analysis=daily_analysis,
             patterns=patterns,
             feedback=feedback,
+            s3_key=s3_key,
             created_at=datetime.utcnow()
         )
         

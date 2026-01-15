@@ -43,6 +43,7 @@ class CreateReportResponse(BaseModel):
     feedback: List[str]
     has_partial_data: bool
     created_at: str
+    s3_key: Optional[str] = None
 
 
 class ReportSummaryResponse(BaseModel):
