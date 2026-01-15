@@ -1,4 +1,4 @@
-name: Deploy Weekly Report Service
+name: Build and Update Image Tag
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: weekly-report
-  EKS_CLUSTER_NAME: fproject-dev-eks
 
 jobs:
   test:
@@ -57,67 +56,34 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building from commit: $IMAGE_TAG"
-          echo "Checking report.py content:"
-          head -5 app/api/routes/report.py
           docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-  deploy:
+  update-manifest:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
-      
-      - name: Install envsubst
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gettext-base
-      
-      - name: Deploy to EKS
+      - name: Update image tag in deployment.yaml
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: 324547056370.dkr.ecr.us-east-1.amazonaws.com
         run: |
-          # Apply ConfigMap and ServiceAccount (IRSA 사용)
-          kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/serviceaccount.yaml
+          # 현재 이미지 태그를 새 태그로 교체
+          sed -i "s|image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:.*|image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}|g" k8s/deployment.yaml
           
-          # Apply service and ingress
-          kubectl apply -f k8s/service.yaml
-          kubectl apply -f k8s/ingress.yaml
-          
-          # Apply deployment (uses latest tag)
-          kubectl apply -f k8s/deployment.yaml
-          
-          # Force rollout restart to pull latest image
-          kubectl rollout restart deployment/weekly-report -n default
-          
-          # Wait for rollout with detailed status
-          echo "Waiting for deployment to be ready..."
-          kubectl rollout status deployment/weekly-report --timeout=300s -n default || {
-            echo "Deployment failed. Checking pod status..."
-            kubectl get pods -n default -l app=weekly-report
-            kubectl describe pod -n default -l app=weekly-report
-            kubectl logs -n default -l app=weekly-report --tail=50 || true
-            exit 1
-          }
+          # 변경 확인
+          grep "image:" k8s/deployment.yaml
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/deployment.yaml
+          git diff --staged --quiet || git commit -m "ci: update image tag to ${{ github.sha }}"
+          git push
