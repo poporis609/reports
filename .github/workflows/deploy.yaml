@@ -99,14 +99,15 @@ jobs:
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/serviceaccount.yaml
           
-          # Update deployment with new image tag
-          kubectl set image deployment/weekly-report \
-            weekly-report=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -n default
-          
           # Apply service and ingress
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
+          
+          # Apply deployment (uses latest tag)
+          kubectl apply -f k8s/deployment.yaml
+          
+          # Force rollout restart to pull latest image
+          kubectl rollout restart deployment/weekly-report -n default
           
           # Wait for rollout with detailed status
           echo "Waiting for deployment to be ready..."
