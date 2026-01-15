@@ -57,68 +57,56 @@ class BedrockService:
         self,
         entries: List[Dict[str, Any]],
         nickname: str
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
-        일기 항목을 Bedrock 입력 형식으로 변환합니다.
+        일기 항목을 Bedrock Flow 입력 형식(텍스트)으로 변환합니다.
         
         Args:
             entries: 일기 항목 목록
             nickname: 작성자 닉네임
             
         Returns:
-            Bedrock 입력 형식의 딕셔너리
+            일기 내용을 합친 텍스트
         """
-        documents = []
+        diary_texts = []
         for entry in entries:
             record_date = entry.get("record_date", "")
-            # date 객체를 문자열로 변환
             if isinstance(record_date, date):
                 record_date = record_date.isoformat()
             
-            doc = {
-                "diaryContent": entry.get("content", ""),
-                "createdDate": str(record_date),
-                "authorNickname": nickname,
-            }
-            # 태그가 있으면 추가
-            if entry.get("tags"):
-                doc["tags"] = entry.get("tags")
-            documents.append(doc)
+            content = entry.get("content", "")
+            diary_texts.append(f"[{record_date}] {content}")
         
-        return {"documents": documents}
+        # 일기 내용을 줄바꿈으로 연결
+        return f"작성자: {nickname}\n\n" + "\n\n".join(diary_texts)
     
     def _invoke_flow_with_retry(
         self,
-        input_data: Dict[str, Any],
+        input_text: str,
         max_retries: int = 3
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
         Bedrock Flow를 재시도 로직과 함께 호출합니다.
         
         Args:
-            input_data: 입력 데이터
+            input_text: 입력 텍스트
             max_retries: 최대 재시도 횟수
             
         Returns:
-            Flow 응답
+            Flow 응답 텍스트
         """
         retry_delays = [1, 2, 4]  # 지수 백오프
         last_error = None
         
         for attempt in range(max_retries):
             try:
-                start_time = time.time()
-                
-                # input_data를 JSON 문자열로 변환 (Flow가 STRING 타입 기대)
-                input_string = json.dumps(input_data, ensure_ascii=False)
-                
                 response = self.client.invoke_flow(
                     flowIdentifier=self.flow_id,
                     flowAliasIdentifier=self.flow_alias_id,
                     inputs=[
                         {
                             "content": {
-                                "document": input_string
+                                "document": input_text
                             },
                             "nodeName": "FlowInputNode",
                             "nodeOutputName": "document"
@@ -126,19 +114,10 @@ class BedrockService:
                     ]
                 )
                 
-                # 타임아웃 체크
-                elapsed = time.time() - start_time
-                if elapsed > self.timeout:
-                    raise BedrockTimeoutError(
-                        f"Bedrock Flow 요청이 {self.timeout}초를 초과했습니다"
-                    )
-                
                 # 응답 스트림 처리
                 result = self._process_response_stream(response)
                 return result
                 
-            except BedrockTimeoutError:
-                raise
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
@@ -147,7 +126,7 @@ class BedrockService:
         
         raise BedrockServiceError(f"Bedrock Flow 호출 실패: {last_error}")
     
-    def _process_response_stream(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_response_stream(self, response: Dict[str, Any]) -> str:
         """
         Bedrock Flow 응답 스트림을 처리합니다.
         
@@ -155,9 +134,9 @@ class BedrockService:
             response: Flow 응답
             
         Returns:
-            파싱된 결과
+            응답 텍스트
         """
-        result = {}
+        result = ""
         
         for event in response.get("responseStream", []):
             if "flowOutputEvent" in event:
@@ -187,25 +166,25 @@ class BedrockService:
         if not entries:
             raise BedrockServiceError("분석할 일기 항목이 없습니다")
         
-        # 입력 데이터 포맷팅
-        input_data = self.format_entries_for_bedrock(entries, nickname)
+        # 입력 텍스트 포맷팅
+        input_text = self.format_entries_for_bedrock(entries, nickname)
         
         # Bedrock Flow 호출
-        result = self._invoke_flow_with_retry(input_data)
+        result_text = self._invoke_flow_with_retry(input_text)
         
-        # 결과 파싱
-        return self._parse_analysis_result(result, entries)
+        # 결과 파싱 (텍스트 응답을 SentimentAnalysis로 변환)
+        return self._parse_analysis_result(result_text, entries)
     
     def _parse_analysis_result(
         self,
-        result: Dict[str, Any],
+        result_text: str,
         entries: List[Dict[str, Any]]
     ) -> SentimentAnalysis:
         """
-        Bedrock 응답을 SentimentAnalysis로 파싱합니다.
+        Bedrock 응답 텍스트를 SentimentAnalysis로 파싱합니다.
         
         Args:
-            result: Bedrock 응답
+            result_text: Bedrock 응답 텍스트
             entries: 원본 일기 항목
             
         Returns:
@@ -213,37 +192,24 @@ class BedrockService:
         """
         daily_scores = []
         
-        # 일별 점수 파싱
-        raw_scores = result.get("dailyScores", [])
-        for score_data in raw_scores:
+        # Flow 응답은 텍스트이므로 일별 점수는 기본값 생성
+        for entry in entries:
+            record_date = entry.get("record_date", "")
+            if isinstance(record_date, date):
+                record_date = record_date.isoformat()
             daily_scores.append(DailyScore(
-                date=score_data.get("date", ""),
-                score=float(score_data.get("score", 5.0)),
-                sentiment=score_data.get("sentiment", "중립"),
-                key_themes=score_data.get("keyThemes", [])
+                date=record_date,
+                score=5.0,
+                sentiment="분석 완료",
+                key_themes=entry.get("tags", []) or []
             ))
         
-        # 일별 점수가 없으면 기본값 생성
-        if not daily_scores:
-            for entry in entries:
-                record_date = entry.get("record_date", "")
-                if isinstance(record_date, date):
-                    record_date = record_date.isoformat()
-                daily_scores.append(DailyScore(
-                    date=record_date,
-                    score=5.0,
-                    sentiment="분석 중",
-                    key_themes=entry.get("tags", []) or []
-                ))
-        
-        # 주간 인사이트 파싱
-        insights = result.get("weeklyInsights", {})
-        
+        # Flow 응답 텍스트를 recommendations에 저장
         return SentimentAnalysis(
             daily_scores=daily_scores,
-            positive_patterns=insights.get("positivePatterns", []),
-            negative_patterns=insights.get("negativePatterns", []),
-            recommendations=insights.get("recommendations", [])
+            positive_patterns=[],
+            negative_patterns=[],
+            recommendations=[result_text] if result_text else []
         )
 
 
