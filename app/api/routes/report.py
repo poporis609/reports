@@ -4,7 +4,7 @@
 import logging
 from datetime import date, datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -289,7 +289,7 @@ async def get_report_by_nickname(
 @router.get("/{report_id}")
 async def get_report_by_id(
     report_id: int,
-    user_id: str,
+    user_id: str = Query(..., description="사용자 ID"),
     db: Session = Depends(get_db),
 ):
     """
@@ -318,8 +318,8 @@ async def get_report_by_id(
 
 @router.get("/")
 async def get_my_reports(
-    user_id: str,
-    limit: int = 10,
+    user_id: str = Query(..., description="사용자 ID"),
+    limit: int = Query(10, description="조회할 개수"),
     db: Session = Depends(get_db),
 ):
     """
@@ -337,7 +337,7 @@ async def get_my_reports(
 @router.get("/{report_id}/file")
 async def get_report_file(
     report_id: int,
-    user_id: str,
+    user_id: str = Query(..., description="사용자 ID"),
     db: Session = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
 ):
@@ -387,7 +387,7 @@ async def get_report_file(
 @router.get("/{report_id}/download-url")
 async def get_report_download_url(
     report_id: int,
-    user_id: str,
+    user_id: str = Query(..., description="사용자 ID"),
     db: Session = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
 ):
