@@ -109,13 +109,16 @@ class BedrockService:
             try:
                 start_time = time.time()
                 
+                # input_data를 JSON 문자열로 변환 (Flow가 STRING 타입 기대)
+                input_string = json.dumps(input_data, ensure_ascii=False)
+                
                 response = self.client.invoke_flow(
                     flowIdentifier=self.flow_id,
                     flowAliasIdentifier=self.flow_alias_id,
                     inputs=[
                         {
                             "content": {
-                                "document": input_data
+                                "document": input_string
                             },
                             "nodeName": "FlowInputNode",
                             "nodeOutputName": "document"
