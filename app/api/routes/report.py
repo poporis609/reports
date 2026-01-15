@@ -1,5 +1,6 @@
 """
 리포트 API 라우터 - 주간 감정 분석 리포트 생성 및 조회
+user_id 파라미터로 인증 없이 접근 가능
 """
 import logging
 from datetime import date, datetime
