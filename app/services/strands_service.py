@@ -118,16 +118,17 @@ class StrandsAgentService:
 ```
 """
         
-        logger.info(f"AgentCore 분석 시작: {nickname}")
+        print(f"AgentCore 분석 시작: {nickname}")
         
         try:
             # AgentCore 호출
+            print(f"AgentCore ARN: {self.agent_runtime_arn}")
             response = self.client.invoke_agent_runtime(
                 agentRuntimeArn=self.agent_runtime_arn,
                 payload=json.dumps({"prompt": prompt}).encode('utf-8')
             )
             
-            logger.info(f"AgentCore 응답 키: {list(response.keys())}")
+            print(f"AgentCore 응답 키: {list(response.keys())}")
             
             # 응답 파싱 - 다양한 형식 지원
             if 'body' in response:
@@ -140,14 +141,16 @@ class StrandsAgentService:
                 # 전체 응답을 문자열로 변환
                 result = json.dumps(response, default=str)
             
-            logger.info(f"AgentCore 분석 완료: {nickname}, 응답 길이: {len(result)}")
-            logger.info(f"AgentCore 응답 미리보기: {result[:500]}")
+            print(f"AgentCore 분석 완료: {nickname}, 응답 길이: {len(result)}")
+            print(f"AgentCore 응답 미리보기: {result[:500]}")
             
             # 응답 파싱
             return self._parse_response(result, entries)
             
         except Exception as e:
-            logger.error(f"AgentCore 분석 실패: {e}")
+            print(f"AgentCore 분석 실패: {e}")
+            import traceback
+            traceback.print_exc()
             # 실패 시 기본값 반환
             return self._default_analysis(entries)
     
