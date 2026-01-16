@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 from collections import defaultdict
 
-from app.services.bedrock_service import SentimentAnalysis, DailyScore
+from app.services.strands_service import SentimentAnalysis, DailyScore
 
 
 @dataclass
