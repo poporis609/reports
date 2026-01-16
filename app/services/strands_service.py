@@ -133,7 +133,10 @@ class StrandsAgentService:
             # 응답 파싱 - 다양한 형식 지원
             if 'response' in response:
                 result = response['response']
-                if isinstance(result, bytes):
+                # StreamingBody 처리
+                if hasattr(result, 'read'):
+                    result = result.read().decode('utf-8')
+                elif isinstance(result, bytes):
                     result = result.decode('utf-8')
             elif 'body' in response:
                 result = response['body'].read().decode('utf-8')
