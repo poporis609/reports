@@ -25,7 +25,7 @@ spec:
       serviceAccountName: weekly-report-sa
       containers:
       - name: weekly-report
-        image: 324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:d7f308fc44a710eb0ddc7c834a1c0dad1d7e891d
+        image: 324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:afc912ccbee1bf37caf3161808bfc23df8a23356
         ports:
         - containerPort: 8000
           name: http
