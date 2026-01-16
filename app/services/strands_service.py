@@ -168,43 +168,80 @@ class StrandsAgentService:
     ) -> SentimentAnalysis:
         """Agent 응답을 SentimentAnalysis로 파싱합니다."""
         
-        # JSON 추출
-        json_match = re.search(r'\{[\s\S]*\}', response)
-        if json_match:
-            try:
-                data = json.loads(json_match.group())
-                
-                # daily_scores 생성
-                daily_scores = []
-                for item in data.get("daily_analysis", []):
-                    daily_scores.append(DailyScore(
-                        date=item.get("date", ""),
-                        score=float(item.get("score", 5)),
-                        sentiment=item.get("sentiment", "분석 완료"),
-                        key_themes=item.get("key_themes", [])
-                    ))
-                
-                # 패턴 추출
-                positive_patterns = []
-                negative_patterns = []
-                for pattern in data.get("patterns", []):
-                    pattern_str = f"{pattern.get('value', '')} ({pattern.get('type', '')})"
-                    if pattern.get("correlation") == "positive":
-                        positive_patterns.append(pattern_str)
-                    else:
-                        negative_patterns.append(pattern_str)
-                
-                return SentimentAnalysis(
-                    daily_scores=daily_scores,
-                    positive_patterns=positive_patterns,
-                    negative_patterns=negative_patterns,
-                    recommendations=data.get("feedback", [])
-                )
-                
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON 파싱 실패: {e}")
+        print(f"파싱 시작, 응답 타입: {type(response)}")
         
-        return self._default_analysis(entries)
+        try:
+            # 먼저 전체 응답을 JSON으로 파싱 시도
+            outer_data = json.loads(response)
+            
+            # result 키가 있으면 그 안의 내용에서 JSON 추출
+            if "result" in outer_data:
+                inner_content = outer_data["result"]
+                print(f"result 키 발견, 내부 컨텐츠 길이: {len(inner_content)}")
+                
+                # 내부 컨텐츠에서 JSON 블록 추출
+                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', inner_content)
+                if json_match:
+                    json_str = json_match.group(1)
+                    print(f"JSON 블록 발견: {json_str[:200]}")
+                    data = json.loads(json_str)
+                else:
+                    # ```json 없이 직접 JSON 객체 찾기
+                    json_match = re.search(r'\{[^{}]*"daily_analysis"[^{}]*\[[\s\S]*?\]\s*\}', inner_content)
+                    if json_match:
+                        data = json.loads(json_match.group())
+                    else:
+                        print("JSON 블록을 찾을 수 없음")
+                        return self._default_analysis(entries)
+            else:
+                # result 키가 없으면 직접 데이터로 사용
+                data = outer_data
+                
+        except json.JSONDecodeError:
+            # 전체가 JSON이 아니면 기존 방식으로 추출
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                except json.JSONDecodeError as e:
+                    print(f"JSON 파싱 실패: {e}")
+                    return self._default_analysis(entries)
+            else:
+                return self._default_analysis(entries)
+        
+        print(f"파싱된 데이터 키: {list(data.keys())}")
+        
+        # daily_scores 생성
+        daily_scores = []
+        for item in data.get("daily_analysis", []):
+            daily_scores.append(DailyScore(
+                date=item.get("date", ""),
+                score=float(item.get("score", 5)),
+                sentiment=item.get("sentiment", "분석 완료"),
+                key_themes=item.get("key_themes", [])
+            ))
+        
+        print(f"daily_scores 개수: {len(daily_scores)}")
+        
+        # 패턴 추출
+        positive_patterns = []
+        negative_patterns = []
+        for pattern in data.get("patterns", []):
+            pattern_str = f"{pattern.get('value', '')} ({pattern.get('type', '')})"
+            if pattern.get("correlation") == "positive":
+                positive_patterns.append(pattern_str)
+            else:
+                negative_patterns.append(pattern_str)
+        
+        feedback = data.get("feedback", [])
+        print(f"피드백 개수: {len(feedback)}")
+        
+        return SentimentAnalysis(
+            daily_scores=daily_scores,
+            positive_patterns=positive_patterns,
+            negative_patterns=negative_patterns,
+            recommendations=feedback
+        )
     
     def _default_analysis(self, entries: List[Dict[str, Any]]) -> SentimentAnalysis:
         """기본 분석 결과 반환"""
