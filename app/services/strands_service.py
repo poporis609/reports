@@ -131,7 +131,11 @@ class StrandsAgentService:
             print(f"AgentCore 응답 키: {list(response.keys())}")
             
             # 응답 파싱 - 다양한 형식 지원
-            if 'body' in response:
+            if 'response' in response:
+                result = response['response']
+                if isinstance(result, bytes):
+                    result = result.decode('utf-8')
+            elif 'body' in response:
                 result = response['body'].read().decode('utf-8')
             elif 'output' in response:
                 result = response['output']
