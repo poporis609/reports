@@ -26,7 +26,3 @@ pytest-cov==4.1.0
 # Utilities
 python-dotenv==1.0.0
 python-multipart==0.0.6
-
-# Strands Agents SDK
-strands-agents
-strands-agents-tools

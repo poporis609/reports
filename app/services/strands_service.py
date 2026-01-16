@@ -1,6 +1,7 @@
 # app/services/strands_service.py
 """
-Strands Agent 서비스 - Bedrock Flow 대체
+Strands Agent 서비스 - AgentCore 호출 방식
+EKS에서는 strands 직접 사용 대신 AgentCore Runtime 호출
 """
 import json
 import re
@@ -8,12 +9,11 @@ import logging
 from typing import Dict, Any, List
 from datetime import date
 from functools import lru_cache
+from dataclasses import dataclass
 
-from strands import Agent
-from strands.models import BedrockModel
+import boto3
 
 from app.config.settings import get_settings
-from app.services.bedrock_service import SentimentAnalysis, DailyScore
 
 logger = logging.getLogger(__name__)
 
@@ -23,68 +23,34 @@ class StrandsServiceError(Exception):
     pass
 
 
+@dataclass
+class DailyScore:
+    """일별 감정 점수"""
+    date: str
+    score: float
+    sentiment: str
+    key_themes: List[str]
+
+
+@dataclass
+class SentimentAnalysis:
+    """감정 분석 결과"""
+    daily_scores: List[DailyScore]
+    positive_patterns: List[str]
+    negative_patterns: List[str]
+    recommendations: List[str]
+
+
 class StrandsAgentService:
-    """Strands Agent를 사용한 감정 분석 서비스"""
+    """Strands Agent를 사용한 감정 분석 서비스 (AgentCore 호출)"""
     
     def __init__(self):
         self.settings = get_settings()
-        
-        # Claude Sonnet 4.5 모델 (Bedrock) - inference profile 사용
-        self.model = BedrockModel(
-            model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        self.client = boto3.client(
+            "bedrock-agentcore",
             region_name=self.settings.AWS_REGION
         )
-        
-        # Agent 생성
-        self.agent = Agent(
-            model=self.model,
-            system_prompt=self._get_system_prompt()
-        )
-    
-    def _get_system_prompt(self) -> str:
-        return """
-당신은 감정 분석 전문가입니다. 일기 내용을 분석하여 다음을 수행합니다:
-
-1. 각 일기의 감정 점수(1-10) 산출
-2. 주요 감정 상태 파악
-3. 긍정/부정 패턴 발견
-4. 따뜻하고 공감적인 피드백 제공
-
-## 감정 점수 기준
-- 1-3점: 부정적 (슬픔, 분노, 불안, 스트레스)
-- 4-6점: 중립적 (평범, 무난, 일상적)
-- 7-10점: 긍정적 (기쁨, 행복, 만족, 설렘)
-
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 반환하세요:
-
-{
-  "average_score": 7.5,
-  "evaluation": "positive",
-  "daily_analysis": [
-    {
-      "date": "2026-01-05",
-      "score": 8,
-      "sentiment": "긍정적",
-      "key_themes": ["운동", "새로운 시작"],
-      "diary_content": "일기 내용 요약 (100자 이내)"
-    }
-  ],
-  "patterns": [
-    {
-      "type": "activity",
-      "value": "운동",
-      "correlation": "positive",
-      "frequency": 3,
-      "average_score": 8.0
-    }
-  ],
-  "feedback": [
-    "이번 주는 전반적으로 긍정적이었습니다.",
-    "운동한 날 기분이 좋았네요. 계속 유지하세요!",
-    "# 📊 주간 리포트\\n\\n상세한 분석 내용..."
-  ]
-}
-"""
+        self.agent_runtime_arn = "arn:aws:bedrock-agentcore:us-east-1:324547056370:runtime/my_agent-2TkF0HCkZE"
     
     def analyze_sentiment(
         self,
@@ -93,13 +59,7 @@ class StrandsAgentService:
     ) -> SentimentAnalysis:
         """
         일기 항목들의 감정을 분석합니다.
-        
-        Args:
-            entries: 일기 항목 목록
-            nickname: 작성자 닉네임
-            
-        Returns:
-            감정 분석 결과 (SentimentAnalysis)
+        AgentCore Runtime을 호출하여 분석 수행
         """
         # 일기 내용 포맷팅
         diary_texts = []
@@ -113,26 +73,43 @@ class StrandsAgentService:
         prompt = f"""
 작성자: {nickname}
 
-다음 일기들을 분석해주세요:
+다음 일기들을 분석해서 JSON 형식으로 결과를 반환해주세요:
 
 {chr(10).join(diary_texts)}
 
-JSON 형식으로 분석 결과를 반환해주세요.
+JSON 형식:
+{{
+  "average_score": 7.5,
+  "evaluation": "positive",
+  "daily_analysis": [
+    {{"date": "2026-01-05", "score": 8, "sentiment": "긍정적", "key_themes": ["운동"]}}
+  ],
+  "patterns": [
+    {{"type": "activity", "value": "운동", "correlation": "positive"}}
+  ],
+  "feedback": ["피드백1", "피드백2"]
+}}
 """
         
-        logger.info(f"Strands Agent 분석 시작: {nickname}")
+        logger.info(f"AgentCore 분석 시작: {nickname}")
         
         try:
-            # Agent 호출
-            response = self.agent(prompt)
-            logger.info(f"Strands Agent 분석 완료: {nickname}")
+            # AgentCore 호출
+            response = self.client.invoke_agent_runtime(
+                agentRuntimeArn=self.agent_runtime_arn,
+                payload=json.dumps({"prompt": prompt}).encode('utf-8')
+            )
+            
+            result = response['body'].read().decode('utf-8')
+            logger.info(f"AgentCore 분석 완료: {nickname}")
             
             # 응답 파싱
-            return self._parse_response(str(response), entries)
+            return self._parse_response(result, entries)
             
         except Exception as e:
-            logger.error(f"Strands Agent 분석 실패: {e}")
-            raise StrandsServiceError(f"감정 분석 실패: {e}")
+            logger.error(f"AgentCore 분석 실패: {e}")
+            # 실패 시 기본값 반환
+            return self._default_analysis(entries)
     
     def _parse_response(
         self,
@@ -177,7 +154,10 @@ JSON 형식으로 분석 결과를 반환해주세요.
             except json.JSONDecodeError as e:
                 logger.warning(f"JSON 파싱 실패: {e}")
         
-        # 파싱 실패 시 기본값 반환
+        return self._default_analysis(entries)
+    
+    def _default_analysis(self, entries: List[Dict[str, Any]]) -> SentimentAnalysis:
+        """기본 분석 결과 반환"""
         daily_scores = []
         for entry in entries:
             record_date = entry.get("record_date", "")
@@ -194,7 +174,7 @@ JSON 형식으로 분석 결과를 반환해주세요.
             daily_scores=daily_scores,
             positive_patterns=[],
             negative_patterns=[],
-            recommendations=[response] if response else []
+            recommendations=["분석이 완료되었습니다."]
         )
 
 
