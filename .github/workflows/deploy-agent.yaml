@@ -102,6 +102,8 @@ jobs:
             aws bedrock-agentcore-control update-agent-runtime \
               --agent-runtime-id "$EXISTING" \
               --agent-runtime-artifact "containerConfiguration={containerUri=$IMAGE_URI}" \
+              --role-arn "$ROLE_ARN" \
+              --network-configuration "networkMode=PUBLIC" \
               --region $AWS_REGION
           else
             echo "Creating new runtime: $AGENT_NAME"

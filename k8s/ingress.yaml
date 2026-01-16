@@ -25,3 +25,10 @@ spec:
             name: weekly-report-service
             port:
               number: 8000
+      - path: /chat
+        pathType: Prefix
+        backend:
+          service:
+            name: weekly-report-service
+            port:
+              number: 8000
