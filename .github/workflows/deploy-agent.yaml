@@ -1,0 +1,160 @@
+name: Deploy AgentCore
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: bedrock-agentcore-my_agent
+  AGENT_NAME: my_agent
+
+jobs:
+  deploy-agent:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up QEMU (for ARM64)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd agent
+          
+          # Dockerfile 생성
+          cat > Dockerfile << 'EOF'
+          FROM --platform=linux/arm64 public.ecr.aws/docker/library/python:3.11-slim
+          
+          WORKDIR /app
+          
+          # 시스템 의존성
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              gcc \
+              && rm -rf /var/lib/apt/lists/*
+          
+          # Python 의존성
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          RUN pip install --no-cache-dir aws-opentelemetry-distro
+          
+          # 애플리케이션 코드
+          COPY my_agent.py .
+          COPY tools.py .
+          
+          # 환경 변수
+          ENV PYTHONUNBUFFERED=1
+          ENV AWS_REGION=us-east-1
+          ENV API_BASE_URL=https://api.aws11.shop
+          
+          # 비root 사용자
+          RUN useradd -m -u 1000 agentcore
+          USER agentcore
+          
+          EXPOSE 8080
+          
+          CMD ["opentelemetry-instrument", "python", "-m", "my_agent"]
+          EOF
+          
+          # ARM64 이미지 빌드 & 푸시
+          docker buildx build \
+            --platform linux/arm64 \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            --push \
+            .
+
+      - name: Deploy to AgentCore
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          pip install boto3
+          
+          python << 'EOF'
+          import boto3
+          import os
+          import time
+          
+          region = os.environ['AWS_REGION']
+          agent_name = os.environ['AGENT_NAME']
+          image_uri = f"{os.environ['ECR_REGISTRY']}/{os.environ['ECR_REPOSITORY']}:{os.environ['IMAGE_TAG']}"
+          
+          client = boto3.client('bedrock-agent', region_name=region)
+          
+          # 기존 Agent 확인
+          try:
+              agents = client.list_agent_runtimes()
+              existing = None
+              for agent in agents.get('agentRuntimeSummaries', []):
+                  if agent['agentRuntimeName'] == agent_name:
+                      existing = agent
+                      break
+              
+              if existing:
+                  # 업데이트
+                  print(f"Updating agent: {existing['agentRuntimeId']}")
+                  client.update_agent_runtime(
+                      agentRuntimeId=existing['agentRuntimeId'],
+                      agentRuntimeArtifact={
+                          'containerConfiguration': {
+                              'containerUri': image_uri
+                          }
+                      }
+                  )
+                  print(f"Agent updated with image: {image_uri}")
+              else:
+                  # 새로 생성
+                  print(f"Creating new agent: {agent_name}")
+                  # 실행 역할 ARN 가져오기
+                  iam = boto3.client('iam')
+                  role_name = f"AmazonBedrockAgentCoreSDKRuntime-{region}-e72c1a7c7a"
+                  role = iam.get_role(RoleName=role_name)
+                  role_arn = role['Role']['Arn']
+                  
+                  response = client.create_agent_runtime(
+                      agentRuntimeName=agent_name,
+                      description='Weekly Report AI Agent',
+                      agentRuntimeArtifact={
+                          'containerConfiguration': {
+                              'containerUri': image_uri
+                          }
+                      },
+                      roleArn=role_arn,
+                      networkConfiguration={
+                          'networkMode': 'PUBLIC'
+                      }
+                  )
+                  print(f"Agent created: {response['agentRuntimeId']}")
+                  
+          except Exception as e:
+              print(f"Error: {e}")
+              raise
+          EOF
+
+      - name: Output Agent Info
+        run: |
+          echo "✅ Agent deployed successfully!"
+          echo "Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"

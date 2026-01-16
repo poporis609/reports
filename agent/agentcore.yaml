@@ -1,0 +1,77 @@
+# agent/agentcore.yaml
+# AWS Bedrock AgentCore 배포 설정
+
+name: weekly-report-agent
+description: 주간 감정 분석 리포트 생성 AI Agent
+
+# 런타임 설정
+runtime:
+  python_version: "3.11"
+  handler: agent.agentcore_handler
+  entry_point: handle_request
+
+# 환경 변수
+environment:
+  AWS_REGION: us-east-1
+  DB_HOST: fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com
+  DB_PORT: "5432"
+  DB_NAME: fproject_db
+  DB_USER: fproject_user
+  USE_SECRETS_MANAGER: "true"
+  DB_SECRET_NAME: library-api/db-password
+  APP_CONFIG_SECRET_NAME: weekly-report/app-config
+
+# 리소스 설정
+resources:
+  memory: 1024  # MB
+  timeout: 300  # seconds
+
+# IAM 권한
+permissions:
+  - bedrock:InvokeModel
+  - bedrock:InvokeModelWithResponseStream
+  - secretsmanager:GetSecretValue
+  - s3:PutObject
+  - s3:GetObject
+  - ses:SendEmail
+  - cognito-idp:AdminGetUser
+  - cognito-idp:ListUsers
+  - logs:CreateLogGroup
+  - logs:CreateLogStream
+  - logs:PutLogEvents
+
+# 네트워크 설정 (DB 접근용)
+network:
+  vpc_config:
+    # EKS와 같은 VPC 사용
+    subnet_ids:
+      - subnet-xxxxxxxxx  # Private Subnet 1
+      - subnet-yyyyyyyyy  # Private Subnet 2
+    security_group_ids:
+      - sg-zzzzzzzzz  # DB 접근 허용 Security Group
+
+# 모델 설정
+model:
+  provider: bedrock
+  model_id: us.anthropic.claude-sonnet-4-5-20250514-v1:0
+  region: us-east-1
+
+# 도구 설정
+tools:
+  - name: get_user_info
+    description: 사용자 정보를 조회합니다
+  - name: get_diary_entries
+    description: 지정된 기간의 일기 항목을 조회합니다
+  - name: get_report_list
+    description: 사용자의 리포트 목록을 조회합니다
+  - name: get_report_detail
+    description: 리포트 상세 정보를 조회합니다
+  - name: save_report_to_db
+    description: 생성된 리포트를 DB에 저장합니다
+
+# 로깅 설정
+logging:
+  level: INFO
+  cloudwatch:
+    enabled: true
+    log_group: /aws/bedrock/agentcore/weekly-report-agent
