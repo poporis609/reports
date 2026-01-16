@@ -50,26 +50,21 @@ jobs:
           
           WORKDIR /app
           
-          # 시스템 의존성
           RUN apt-get update && apt-get install -y --no-install-recommends \
               gcc \
               && rm -rf /var/lib/apt/lists/*
           
-          # Python 의존성
           COPY requirements.txt .
           RUN pip install --no-cache-dir -r requirements.txt
           RUN pip install --no-cache-dir aws-opentelemetry-distro
           
-          # 애플리케이션 코드
           COPY my_agent.py .
           COPY tools.py .
           
-          # 환경 변수
           ENV PYTHONUNBUFFERED=1
           ENV AWS_REGION=us-east-1
           ENV API_BASE_URL=https://api.aws11.shop
           
-          # 비root 사용자
           RUN useradd -m -u 1000 agentcore
           USER agentcore
           
@@ -86,73 +81,38 @@ jobs:
             --push \
             .
 
-      - name: Deploy to AgentCore
+      - name: Deploy to AgentCore Runtime
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           pip install boto3
           
-          python << 'EOF'
-          import boto3
-          import os
-          import time
+          # AWS CLI로 AgentCore Runtime 생성/업데이트
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          ROLE_ARN="arn:aws:iam::324547056370:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-e72c1a7c7a"
           
-          region = os.environ['AWS_REGION']
-          agent_name = os.environ['AGENT_NAME']
-          image_uri = f"{os.environ['ECR_REGISTRY']}/{os.environ['ECR_REPOSITORY']}:{os.environ['IMAGE_TAG']}"
+          echo "Image URI: $IMAGE_URI"
           
-          client = boto3.client('bedrock-agent', region_name=region)
+          # 기존 Runtime 확인
+          EXISTING=$(aws bedrock-agentcore-control list-agent-runtimes --region $AWS_REGION --query "agentRuntimes[?agentRuntimeName=='$AGENT_NAME'].agentRuntimeId" --output text 2>/dev/null || echo "")
           
-          # 기존 Agent 확인
-          try:
-              agents = client.list_agent_runtimes()
-              existing = None
-              for agent in agents.get('agentRuntimeSummaries', []):
-                  if agent['agentRuntimeName'] == agent_name:
-                      existing = agent
-                      break
-              
-              if existing:
-                  # 업데이트
-                  print(f"Updating agent: {existing['agentRuntimeId']}")
-                  client.update_agent_runtime(
-                      agentRuntimeId=existing['agentRuntimeId'],
-                      agentRuntimeArtifact={
-                          'containerConfiguration': {
-                              'containerUri': image_uri
-                          }
-                      }
-                  )
-                  print(f"Agent updated with image: {image_uri}")
-              else:
-                  # 새로 생성
-                  print(f"Creating new agent: {agent_name}")
-                  # 실행 역할 ARN 가져오기
-                  iam = boto3.client('iam')
-                  role_name = f"AmazonBedrockAgentCoreSDKRuntime-{region}-e72c1a7c7a"
-                  role = iam.get_role(RoleName=role_name)
-                  role_arn = role['Role']['Arn']
-                  
-                  response = client.create_agent_runtime(
-                      agentRuntimeName=agent_name,
-                      description='Weekly Report AI Agent',
-                      agentRuntimeArtifact={
-                          'containerConfiguration': {
-                              'containerUri': image_uri
-                          }
-                      },
-                      roleArn=role_arn,
-                      networkConfiguration={
-                          'networkMode': 'PUBLIC'
-                      }
-                  )
-                  print(f"Agent created: {response['agentRuntimeId']}")
-                  
-          except Exception as e:
-              print(f"Error: {e}")
-              raise
-          EOF
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
+            echo "Updating existing runtime: $EXISTING"
+            aws bedrock-agentcore-control update-agent-runtime \
+              --agent-runtime-id "$EXISTING" \
+              --agent-runtime-artifact "containerConfiguration={containerUri=$IMAGE_URI}" \
+              --region $AWS_REGION
+          else
+            echo "Creating new runtime: $AGENT_NAME"
+            aws bedrock-agentcore-control create-agent-runtime \
+              --agent-runtime-name "$AGENT_NAME" \
+              --description "Weekly Report AI Agent" \
+              --agent-runtime-artifact "containerConfiguration={containerUri=$IMAGE_URI}" \
+              --role-arn "$ROLE_ARN" \
+              --network-configuration "networkMode=PUBLIC" \
+              --region $AWS_REGION
+          fi
 
       - name: Output Agent Info
         run: |
