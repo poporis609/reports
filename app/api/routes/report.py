@@ -17,7 +17,7 @@ from app.api.schemas import (
     PatternResponse,
 )
 from app.services.cognito_service import get_cognito_service, CognitoService
-from app.services.bedrock_service import get_bedrock_service, BedrockService, BedrockServiceError, BedrockTimeoutError
+from app.services.strands_service import get_strands_service, StrandsAgentService, StrandsServiceError
 from app.services.report_service import ReportAnalysisService
 from app.services.email_service import get_email_service, EmailService
 from app.services.s3_service import get_s3_service, S3Service, S3ServiceError
@@ -46,7 +46,7 @@ def _process_report_background(
     """백그라운드에서 리포트 생성 처리"""
     db = SessionLocal()
     try:
-        bedrock = get_bedrock_service()
+        strands = get_strands_service()
         report_service = ReportAnalysisService()
         report_repo = ReportRepository(db)
         s3_service = S3Service()
@@ -54,8 +54,8 @@ def _process_report_background(
         
         logger.info(f"백그라운드 리포트 생성 시작: report_id={report_id}")
         
-        # Bedrock 감정 분석
-        analysis = bedrock.analyze_sentiment(entry_dicts, nickname)
+        # Strands Agent 감정 분석
+        analysis = strands.analyze_sentiment(entry_dicts, nickname)
         
         # 리포트 생성
         report_result = report_service.generate_report(
