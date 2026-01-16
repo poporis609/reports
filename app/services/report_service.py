@@ -348,14 +348,18 @@ class ReportAnalysisService:
         # 패턴 식별
         patterns = self.identify_patterns(entries, analysis.daily_scores)
         
-        # 피드백 생성
-        feedback = self.generate_feedback(
-            entries, analysis.daily_scores, patterns, evaluation
-        )
+        # 피드백 생성 - AgentCore 피드백 우선 사용
+        feedback = []
         
-        # Bedrock 추천사항 추가
-        if analysis.recommendations:
-            feedback.extend(analysis.recommendations)
+        # AgentCore가 생성한 개인화된 피드백 우선
+        if analysis.recommendations and len(analysis.recommendations) > 1:
+            # AgentCore 피드백이 있으면 그것만 사용
+            feedback = list(analysis.recommendations)
+        else:
+            # AgentCore 피드백이 없거나 기본값이면 로컬 피드백 생성
+            feedback = self.generate_feedback(
+                entries, analysis.daily_scores, patterns, evaluation
+            )
         
         # 부분 데이터 여부 확인
         days_in_week = (week_end - week_start).days + 1
