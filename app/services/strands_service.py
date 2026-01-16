@@ -127,8 +127,21 @@ class StrandsAgentService:
                 payload=json.dumps({"prompt": prompt}).encode('utf-8')
             )
             
-            result = response['body'].read().decode('utf-8')
-            logger.info(f"AgentCore 분석 완료: {nickname}")
+            logger.info(f"AgentCore 응답 키: {list(response.keys())}")
+            
+            # 응답 파싱 - 다양한 형식 지원
+            if 'body' in response:
+                result = response['body'].read().decode('utf-8')
+            elif 'output' in response:
+                result = response['output']
+            elif 'result' in response:
+                result = response['result']
+            else:
+                # 전체 응답을 문자열로 변환
+                result = json.dumps(response, default=str)
+            
+            logger.info(f"AgentCore 분석 완료: {nickname}, 응답 길이: {len(result)}")
+            logger.info(f"AgentCore 응답 미리보기: {result[:500]}")
             
             # 응답 파싱
             return self._parse_response(result, entries)
