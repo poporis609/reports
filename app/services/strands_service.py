@@ -1,7 +1,7 @@
 # app/services/strands_service.py
 """
-Strands Agent 서비스 - AgentCore 호출 방식
-EKS에서는 strands 직접 사용 대신 AgentCore Runtime 호출
+감정 분석 서비스 - Bedrock LLM 직접 호출
+AgentCore가 아닌 Bedrock Converse API를 사용하여 감정 분석 수행
 """
 import json
 import re
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class StrandsServiceError(Exception):
-    """Strands 서비스 에러"""
+    """감정 분석 서비스 에러"""
     pass
 
 
@@ -42,15 +42,16 @@ class SentimentAnalysis:
 
 
 class StrandsAgentService:
-    """Strands Agent를 사용한 감정 분석 서비스 (AgentCore 호출)"""
+    """Bedrock LLM을 사용한 감정 분석 서비스"""
     
     def __init__(self):
         self.settings = get_settings()
         self.client = boto3.client(
-            "bedrock-agentcore",
+            "bedrock-runtime",
             region_name=self.settings.AWS_REGION
         )
-        self.agent_runtime_arn = "arn:aws:bedrock-agentcore:us-east-1:324547056370:runtime/my_agent-2TkF0HCkZE"
+        # Claude Sonnet 모델 사용
+        self.model_id = "us.anthropic.claude-sonnet-4-20250514-v1:0"
     
     def analyze_sentiment(
         self,
@@ -59,7 +60,7 @@ class StrandsAgentService:
     ) -> SentimentAnalysis:
         """
         일기 항목들의 감정을 분석합니다.
-        AgentCore Runtime을 호출하여 분석 수행
+        Bedrock Converse API를 직접 호출하여 분석 수행
         """
         # 일기 내용 포맷팅
         diary_texts = []
@@ -93,7 +94,7 @@ class StrandsAgentService:
 
 ### 피드백 작성 지침
 - {nickname}님의 일기 내용을 직접 언급하며 개인화된 피드백을 작성하세요
-- 구체적인 상황이나 활동을 언급하세요 (예: "금요일에 친구들과의 저녁 모임이...")
+- 구체적인 상황이나 활동을 언급하세요
 - 중복되지 않는 3-5개의 서로 다른 관점의 피드백을 제공하세요
 - 따뜻하고 공감하는 어조로 작성하세요
 
@@ -110,55 +111,40 @@ class StrandsAgentService:
     {{"type": "activity", "value": "야근", "correlation": "negative"}}
   ],
   "feedback": [
-    "{nickname}님, 새 프로젝트 시작이 설레면서도 긴장되셨군요. 팀 분위기가 좋다니 좋은 출발입니다!",
-    "금요일 친구들과의 저녁 모임에서 행복한 시간을 보내셨네요. 이런 사회적 연결이 정서적 안정에 큰 도움이 됩니다.",
-    "야근으로 피곤하셨지만 맛있는 야식으로 스스로를 위로하신 점이 좋습니다. 자기 돌봄을 잘 하고 계세요."
+    "{nickname}님, 이번 주 수고 많으셨어요!",
+    "긍정적인 활동을 계속 유지하세요."
   ]
 }}
 ```
 """
         
-        print(f"AgentCore 분석 시작: {nickname}")
+        logger.info(f"Bedrock 감정 분석 시작: {nickname}")
         
         try:
-            # AgentCore 호출
-            print(f"AgentCore ARN: {self.agent_runtime_arn}")
-            response = self.client.invoke_agent_runtime(
-                agentRuntimeArn=self.agent_runtime_arn,
-                payload=json.dumps({"prompt": prompt}).encode('utf-8')
+            # Bedrock Converse API 호출
+            response = self.client.converse(
+                modelId=self.model_id,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"text": prompt}]
+                    }
+                ],
+                inferenceConfig={
+                    "maxTokens": 4096,
+                    "temperature": 0.7
+                }
             )
             
-            print(f"AgentCore 응답 키: {list(response.keys())}")
-            
-            # 응답 파싱 - 다양한 형식 지원
-            if 'response' in response:
-                result = response['response']
-                # StreamingBody 처리
-                if hasattr(result, 'read'):
-                    result = result.read().decode('utf-8')
-                elif isinstance(result, bytes):
-                    result = result.decode('utf-8')
-            elif 'body' in response:
-                result = response['body'].read().decode('utf-8')
-            elif 'output' in response:
-                result = response['output']
-            elif 'result' in response:
-                result = response['result']
-            else:
-                # 전체 응답을 문자열로 변환
-                result = json.dumps(response, default=str)
-            
-            print(f"AgentCore 분석 완료: {nickname}, 응답 길이: {len(result)}")
-            print(f"AgentCore 응답 미리보기: {result[:500]}")
+            # 응답 추출
+            result_text = response["output"]["message"]["content"][0]["text"]
+            logger.info(f"Bedrock 분석 완료: {nickname}")
             
             # 응답 파싱
-            return self._parse_response(result, entries)
+            return self._parse_response(result_text, entries)
             
         except Exception as e:
-            print(f"AgentCore 분석 실패: {e}")
-            import traceback
-            traceback.print_exc()
-            # 실패 시 기본값 반환
+            logger.error(f"Bedrock 분석 실패: {e}")
             return self._default_analysis(entries)
     
     def _parse_response(
@@ -166,82 +152,52 @@ class StrandsAgentService:
         response: str,
         entries: List[Dict[str, Any]]
     ) -> SentimentAnalysis:
-        """Agent 응답을 SentimentAnalysis로 파싱합니다."""
-        
-        print(f"파싱 시작, 응답 타입: {type(response)}")
+        """LLM 응답을 SentimentAnalysis로 파싱합니다."""
         
         try:
-            # 먼저 전체 응답을 JSON으로 파싱 시도
-            outer_data = json.loads(response)
-            
-            # result 키가 있으면 그 안의 내용에서 JSON 추출
-            if "result" in outer_data:
-                inner_content = outer_data["result"]
-                print(f"result 키 발견, 내부 컨텐츠 길이: {len(inner_content)}")
-                
-                # 내부 컨텐츠에서 JSON 블록 추출
-                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', inner_content)
-                if json_match:
-                    json_str = json_match.group(1)
-                    print(f"JSON 블록 발견: {json_str[:200]}")
-                    data = json.loads(json_str)
-                else:
-                    # ```json 없이 직접 JSON 객체 찾기
-                    json_match = re.search(r'\{[^{}]*"daily_analysis"[^{}]*\[[\s\S]*?\]\s*\}', inner_content)
-                    if json_match:
-                        data = json.loads(json_match.group())
-                    else:
-                        print("JSON 블록을 찾을 수 없음")
-                        return self._default_analysis(entries)
-            else:
-                # result 키가 없으면 직접 데이터로 사용
-                data = outer_data
-                
-        except json.JSONDecodeError:
-            # 전체가 JSON이 아니면 기존 방식으로 추출
-            json_match = re.search(r'\{[\s\S]*\}', response)
+            # JSON 블록 추출
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
             if json_match:
-                try:
+                json_str = json_match.group(1)
+                data = json.loads(json_str)
+            else:
+                # ```json 없이 직접 JSON 찾기
+                json_match = re.search(r'\{[\s\S]*"daily_analysis"[\s\S]*\}', response)
+                if json_match:
                     data = json.loads(json_match.group())
-                except json.JSONDecodeError as e:
-                    print(f"JSON 파싱 실패: {e}")
+                else:
                     return self._default_analysis(entries)
-            else:
-                return self._default_analysis(entries)
-        
-        print(f"파싱된 데이터 키: {list(data.keys())}")
-        
-        # daily_scores 생성
-        daily_scores = []
-        for item in data.get("daily_analysis", []):
-            daily_scores.append(DailyScore(
-                date=item.get("date", ""),
-                score=float(item.get("score", 5)),
-                sentiment=item.get("sentiment", "분석 완료"),
-                key_themes=item.get("key_themes", [])
-            ))
-        
-        print(f"daily_scores 개수: {len(daily_scores)}")
-        
-        # 패턴 추출
-        positive_patterns = []
-        negative_patterns = []
-        for pattern in data.get("patterns", []):
-            pattern_str = f"{pattern.get('value', '')} ({pattern.get('type', '')})"
-            if pattern.get("correlation") == "positive":
-                positive_patterns.append(pattern_str)
-            else:
-                negative_patterns.append(pattern_str)
-        
-        feedback = data.get("feedback", [])
-        print(f"피드백 개수: {len(feedback)}")
-        
-        return SentimentAnalysis(
-            daily_scores=daily_scores,
-            positive_patterns=positive_patterns,
-            negative_patterns=negative_patterns,
-            recommendations=feedback
-        )
+            
+            # daily_scores 생성
+            daily_scores = []
+            for item in data.get("daily_analysis", []):
+                daily_scores.append(DailyScore(
+                    date=item.get("date", ""),
+                    score=float(item.get("score", 5)),
+                    sentiment=item.get("sentiment", "분석 완료"),
+                    key_themes=item.get("key_themes", [])
+                ))
+            
+            # 패턴 추출
+            positive_patterns = []
+            negative_patterns = []
+            for pattern in data.get("patterns", []):
+                pattern_str = f"{pattern.get('value', '')} ({pattern.get('type', '')})"
+                if pattern.get("correlation") == "positive":
+                    positive_patterns.append(pattern_str)
+                else:
+                    negative_patterns.append(pattern_str)
+            
+            return SentimentAnalysis(
+                daily_scores=daily_scores,
+                positive_patterns=positive_patterns,
+                negative_patterns=negative_patterns,
+                recommendations=data.get("feedback", [])
+            )
+            
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"응답 파싱 실패: {e}")
+            return self._default_analysis(entries)
     
     def _default_analysis(self, entries: List[Dict[str, Any]]) -> SentimentAnalysis:
         """기본 분석 결과 반환"""
@@ -267,5 +223,5 @@ class StrandsAgentService:
 
 @lru_cache()
 def get_strands_service() -> StrandsAgentService:
-    """Strands 서비스 싱글톤 인스턴스 반환"""
+    """감정 분석 서비스 싱글톤 인스턴스 반환"""
     return StrandsAgentService()

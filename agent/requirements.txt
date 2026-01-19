@@ -1,6 +1,0 @@
-# Agent 전용 requirements
-strands-agents
-strands-agents-tools
-bedrock-agentcore
-boto3>=1.35.0
-httpx>=0.26.0

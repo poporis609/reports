@@ -65,3 +65,6 @@ response.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Reference repos (참고용 레포)
+Fproject-agent-core/
