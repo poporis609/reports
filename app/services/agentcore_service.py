@@ -78,11 +78,29 @@ class AgentCoreService:
                 payload=json.dumps(payload).encode('utf-8')
             )
             
-            # 응답 파싱
-            result = json.loads(response['body'].read().decode('utf-8'))
+            # 응답 파싱 - 다양한 응답 형식 지원
+            logger.info(f"AgentCore 응답 키: {list(response.keys())}")
             
-            logger.info(f"AgentCore 응답 완료: type={result.get('type')}")
-            return result
+            if 'body' in response:
+                body = response['body']
+                if hasattr(body, 'read'):
+                    result = json.loads(body.read().decode('utf-8'))
+                else:
+                    result = json.loads(body) if isinstance(body, str) else body
+            elif 'response' in response:
+                result = response['response']
+                if isinstance(result, str):
+                    result = json.loads(result)
+            elif 'output' in response:
+                result = response['output']
+                if isinstance(result, str):
+                    result = json.loads(result)
+            else:
+                # 응답 자체가 결과일 수 있음
+                result = response
+            
+            logger.info(f"AgentCore 응답 완료: type={result.get('type') if isinstance(result, dict) else 'unknown'}")
+            return result if isinstance(result, dict) else {"type": "data", "content": str(result), "message": ""}
             
         except Exception as e:
             logger.error(f"AgentCore 호출 실패: {e}")
