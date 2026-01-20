@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.settings import get_settings
-from app.api.routes import report_router, chat_router
+from app.api.routes import report_router, agent_report_router
 
 settings = get_settings()
 
@@ -39,9 +39,11 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# 라우터 등록
+# 기존 라우터 (하위 호환성)
 app.include_router(report_router)
-app.include_router(chat_router)
+
+# Agent API 라우터
+app.include_router(agent_report_router, prefix="/agent/report", tags=["agent-report"])
 
 
 @app.get("/health")
