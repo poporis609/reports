@@ -7,8 +7,8 @@
         "secretsmanager:GetSecretValue"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:*:secret:library-api/db-password*",
-        "arn:aws:secretsmanager:us-east-1:*:secret:weekly-report/app-config*"
+        "arn:aws:secretsmanager:ap-northeast-2:*:secret:one-rds-credentials*",
+        "arn:aws:secretsmanager:ap-northeast-2:*:secret:weekly-report/app-config*"
       ]
     },
     {
@@ -19,8 +19,8 @@
         "bedrock:InvokeFlow"
       ],
       "Resource": [
-        "arn:aws:bedrock:us-east-1:*:flow/*",
-        "arn:aws:bedrock:us-east-1::foundation-model/*"
+        "arn:aws:bedrock:ap-northeast-2:*:flow/*",
+        "arn:aws:bedrock:ap-northeast-2::foundation-model/*"
       ]
     },
     {
@@ -29,7 +29,7 @@
         "ses:SendEmail",
         "ses:SendRawEmail"
       ],
-      "Resource": "arn:aws:ses:us-east-1:*:identity/*"
+      "Resource": "arn:aws:ses:ap-northeast-2:*:identity/*"
     },
     {
       "Effect": "Allow",
@@ -37,7 +37,7 @@
         "cognito-idp:AdminGetUser",
         "cognito-idp:ListUsers"
       ],
-      "Resource": "arn:aws:cognito-idp:us-east-1:*:userpool/*"
+      "Resource": "arn:aws:cognito-idp:ap-northeast-2:*:userpool/*"
     }
   ]
 }
