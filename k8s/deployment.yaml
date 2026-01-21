@@ -25,7 +25,7 @@ spec:
       serviceAccountName: weekly-report-sa
       containers:
       - name: weekly-report
-        image: 324547056370.dkr.ecr.us-east-1.amazonaws.com/weekly-report:c76a7a35c2bc3d441edc7a7cf704394683286605
+        image: 324547056370.dkr.ecr.ap-northeast-2.amazonaws.com/weekly-report:e9a306d75cc10fc0a18105811e9a0e3f48b81817
         ports:
         - containerPort: 8000
           name: http
@@ -39,19 +39,19 @@ spec:
         - name: USE_SECRETS_MANAGER
           value: "true"
         - name: DB_SECRET_NAME
-          value: "library-api/db-password"
+          value: "one-rds-credentials"
         - name: APP_CONFIG_SECRET_NAME
           value: "weekly-report/app-config"
         - name: DB_HOST
-          value: "fproject-dev-postgres.c9eksq6cmh3c.us-east-1.rds.amazonaws.com"
+          value: "one-postgres.cricim2es6bi.ap-northeast-2.rds.amazonaws.com"
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
-          value: "fproject_db"
+          value: "onedb"
         - name: DB_USER
-          value: "fproject_user"
+          value: "oneuser"
         - name: AWS_REGION
-          value: "us-east-1"
+          value: "ap-northeast-2"
         - name: SES_SENDER_EMAIL
           value: "noreply@aws11.shop"
         - name: API_BASE_URL
