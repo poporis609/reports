@@ -29,6 +29,7 @@ allowed_origins = [
     "https://aws11.shop",
     "https://api.aws11.shop",
     "https://www.aws11.shop",
+    "https://web.aws11.shop",
 ]
 
 # 개발 환경에서만 localhost 허용
