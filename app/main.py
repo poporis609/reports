@@ -50,6 +50,12 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.get("/health")
+async def health_check():
+    """헬스 체크 엔드포인트 (K8s liveness/readiness probe용)"""
+    return {"status": "healthy", "service": settings.APP_NAME}
+
+
 @app.get("/")
 async def root():
     """루트 엔드포인트"""
