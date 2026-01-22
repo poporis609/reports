@@ -48,8 +48,14 @@ def _process_report_background(
         
         logger.info(f"백그라운드 리포트 생성 시작: report_id={report_id}")
         
-        # Strands Agent 감정 분석
-        analysis = strands.analyze_sentiment(entry_dicts, nickname)
+        # Fproject-agent API를 통한 감정 분석
+        analysis = strands.analyze_sentiment(
+            entries=entry_dicts,
+            nickname=nickname,
+            user_id=user_id,
+            start_date=week_start.isoformat(),
+            end_date=week_end.isoformat()
+        )
         
         # 리포트 생성
         report_result = report_service.generate_report(

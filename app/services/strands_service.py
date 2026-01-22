@@ -1,21 +1,23 @@
 # app/services/strands_service.py
 """
-감정 분석 서비스 - Bedrock LLM 직접 호출
-AgentCore가 아닌 Bedrock Converse API를 사용하여 감정 분석 수행
+감정 분석 서비스 - Fproject-agent API 호출
+Bedrock 직접 호출 대신 Fproject-agent의 /agent/report 엔드포인트를 사용
 """
 import json
 import re
 import logging
+import httpx
 from typing import Dict, Any, List
 from datetime import date
 from functools import lru_cache
 from dataclasses import dataclass
 
-import boto3
-
 from app.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Fproject-agent API 엔드포인트
+AGENT_API_URL = "https://api.aws11.shop/agent/report"
 
 
 class StrandsServiceError(Exception):
@@ -42,25 +44,24 @@ class SentimentAnalysis:
 
 
 class StrandsAgentService:
-    """Bedrock LLM을 사용한 감정 분석 서비스"""
+    """Fproject-agent API를 사용한 감정 분석 서비스"""
     
     def __init__(self):
         self.settings = get_settings()
-        self.client = boto3.client(
-            "bedrock-runtime",
-            region_name=self.settings.AWS_REGION
-        )
-        # Claude Sonnet 모델 사용
-        self.model_id = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+        self.api_url = AGENT_API_URL
+        self.timeout = 120.0  # AI 분석에 시간이 걸릴 수 있으므로 타임아웃 늘림
     
     def analyze_sentiment(
         self,
         entries: List[Dict[str, Any]],
-        nickname: str
+        nickname: str,
+        user_id: str = None,
+        start_date: str = None,
+        end_date: str = None
     ) -> SentimentAnalysis:
         """
         일기 항목들의 감정을 분석합니다.
-        Bedrock Converse API를 직접 호출하여 분석 수행
+        Fproject-agent API를 호출하여 분석 수행
         """
         # 일기 내용 포맷팅
         diary_texts = []
@@ -71,91 +72,79 @@ class StrandsAgentService:
             content = entry.get("content", "")
             diary_texts.append(f"[{record_date}] {content}")
         
-        prompt = f"""
-당신은 전문 심리 상담사입니다. {nickname}님의 일주일 일기를 분석해주세요.
+        # API 요청 본문 구성
+        request_content = f"""
+{nickname}님의 일주일 일기를 분석해주세요.
 
 ## 일기 내용
 {chr(10).join(diary_texts)}
 
-## 분석 지침
+## 분석 요청
+1. 각 일기의 감정 점수 (1-10점)
+2. 긍정적/부정적 패턴 식별
+3. 개인화된 피드백 제공
 
-### 감정 점수 기준 (1-10점)
-- 1-2점: 매우 부정적 (우울, 절망, 분노 폭발)
-- 3-4점: 부정적 (스트레스, 짜증, 불안, 피로)
-- 5-6점: 중립/보통 (평범한 하루, 특별한 감정 없음)
-- 7-8점: 긍정적 (기쁨, 만족, 즐거움)
-- 9-10점: 매우 긍정적 (행복, 감동, 성취감)
-
-### 분석 시 주의사항
-- 각 일기의 구체적인 내용과 표현을 바탕으로 점수를 차등 부여하세요
-- "피곤", "야근", "힘들다" 등은 낮은 점수 (3-5점)
-- "행복", "좋았다", "즐거웠다" 등은 높은 점수 (7-9점)
-- 일기에 언급된 구체적인 활동, 사람, 장소를 key_themes에 포함하세요
-
-### 피드백 작성 지침
-- {nickname}님의 일기 내용을 직접 언급하며 개인화된 피드백을 작성하세요
-- 구체적인 상황이나 활동을 언급하세요
-- 중복되지 않는 3-5개의 서로 다른 관점의 피드백을 제공하세요
-- 따뜻하고 공감하는 어조로 작성하세요
-
-## 응답 형식 (반드시 JSON만 출력)
-```json
+응답은 반드시 JSON 형식으로 해주세요:
 {{
   "average_score": 6.5,
   "evaluation": "positive",
   "daily_analysis": [
-    {{"date": "2026-01-06", "score": 7, "sentiment": "설렘과 긴장", "key_themes": ["새 프로젝트", "킥오프 미팅", "팀원"]}}
+    {{"date": "2026-01-13", "score": 7, "sentiment": "긍정적", "key_themes": ["테마1", "테마2"]}}
   ],
   "patterns": [
-    {{"type": "social", "value": "동료/친구 만남", "correlation": "positive"}},
-    {{"type": "activity", "value": "야근", "correlation": "negative"}}
+    {{"type": "activity", "value": "활동명", "correlation": "positive"}}
   ],
-  "feedback": [
-    "{nickname}님, 이번 주 수고 많으셨어요!",
-    "긍정적인 활동을 계속 유지하세요."
-  ]
+  "feedback": ["피드백1", "피드백2"]
 }}
-```
 """
         
-        logger.info(f"Bedrock 감정 분석 시작: {nickname}")
+        request_body = {
+            "content": request_content,
+            "user_id": user_id,
+            "start_date": start_date,
+            "end_date": end_date
+        }
+        
+        logger.info(f"Fproject-agent API 호출 시작: {nickname}, user_id={user_id}")
         
         try:
-            # Bedrock Converse API 호출
-            response = self.client.converse(
-                modelId=self.model_id,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [{"text": prompt}]
-                    }
-                ],
-                inferenceConfig={
-                    "maxTokens": 4096,
-                    "temperature": 0.7
-                }
-            )
-            
-            # 응답 추출
-            result_text = response["output"]["message"]["content"][0]["text"]
-            logger.info(f"Bedrock 분석 완료: {nickname}")
-            
-            # 응답 파싱
-            return self._parse_response(result_text, entries)
-            
+            with httpx.Client(timeout=self.timeout) as client:
+                response = client.post(
+                    self.api_url,
+                    json=request_body,
+                    headers={"Content-Type": "application/json"}
+                )
+                response.raise_for_status()
+                
+                result = response.json()
+                logger.info(f"Fproject-agent API 응답: success={result.get('success')}")
+                
+                if result.get("success"):
+                    # 응답에서 분석 결과 추출
+                    return self._parse_agent_response(result.get("response", ""), entries)
+                else:
+                    logger.error(f"Agent API 오류: {result.get('error')}")
+                    return self._default_analysis(entries)
+                    
+        except httpx.TimeoutException:
+            logger.error("Fproject-agent API 타임아웃")
+            return self._default_analysis(entries)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Fproject-agent API HTTP 오류: {e.response.status_code}")
+            return self._default_analysis(entries)
         except Exception as e:
-            logger.error(f"Bedrock 분석 실패: {e}")
+            logger.error(f"Fproject-agent API 호출 실패: {e}")
             return self._default_analysis(entries)
     
-    def _parse_response(
+    def _parse_agent_response(
         self,
         response: str,
         entries: List[Dict[str, Any]]
     ) -> SentimentAnalysis:
-        """LLM 응답을 SentimentAnalysis로 파싱합니다."""
+        """Agent API 응답을 SentimentAnalysis로 파싱합니다."""
         
         try:
-            # JSON 블록 추출
+            # JSON 블록 추출 시도
             json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
             if json_match:
                 json_str = json_match.group(1)
@@ -166,6 +155,8 @@ class StrandsAgentService:
                 if json_match:
                     data = json.loads(json_match.group())
                 else:
+                    # JSON이 없으면 텍스트 응답에서 정보 추출 시도
+                    logger.warning("JSON 형식 응답 없음, 기본 분석 사용")
                     return self._default_analysis(entries)
             
             # daily_scores 생성
@@ -200,7 +191,7 @@ class StrandsAgentService:
             return self._default_analysis(entries)
     
     def _default_analysis(self, entries: List[Dict[str, Any]]) -> SentimentAnalysis:
-        """기본 분석 결과 반환"""
+        """기본 분석 결과 반환 (API 실패 시)"""
         daily_scores = []
         for entry in entries:
             record_date = entry.get("record_date", "")
@@ -209,7 +200,7 @@ class StrandsAgentService:
             daily_scores.append(DailyScore(
                 date=record_date,
                 score=5.0,
-                sentiment="분석 완료",
+                sentiment="분석 대기",
                 key_themes=entry.get("tags", []) or []
             ))
         
@@ -217,7 +208,7 @@ class StrandsAgentService:
             daily_scores=daily_scores,
             positive_patterns=[],
             negative_patterns=[],
-            recommendations=["분석이 완료되었습니다."]
+            recommendations=["AI 분석 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."]
         )
 
 
