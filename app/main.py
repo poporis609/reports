@@ -2,12 +2,30 @@
 FastAPI Application Entry Point
 Fproject-agent 패턴에 맞춘 메인 애플리케이션
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.startup import startup_handler
 from app.api.router import router
+from app.tracing import setup_tracing
+
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 라이프사이클 관리"""
+    # Startup
+    setup_tracing("weekly-report")
+    HTTPXClientInstrumentor().instrument()
+    await startup_handler()
+    yield
+    # Shutdown (필요시 정리 로직 추가)
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -15,13 +33,8 @@ app = FastAPI(
     description="주간 일기 분석 및 감정 리포트 서비스",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
-
-
-# Startup event
-@app.on_event("startup")
-async def startup():
-    await startup_handler()
 
 
 # CORS 설정
@@ -49,6 +62,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(router)
+
+# FastAPI Instrumentor 적용
+FastAPIInstrumentor.instrument_app(app)
 
 
 @app.get("/health")
