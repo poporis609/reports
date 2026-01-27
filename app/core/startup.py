@@ -3,7 +3,9 @@ Application Startup Handler
 Fproject-agent 패턴에 맞춘 시작 핸들러
 """
 import logging
-from app.core.config import settings
+from app.config.settings import get_settings
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ async def startup_handler():
     try:
         print(f"✅ 설정 로드 완료")
         print(f"   - App Name: {settings.APP_NAME}")
-        print(f"   - Version: {settings.VERSION}")
+        print(f"   - Version: {settings.APP_VERSION}")
         print(f"   - AWS Region: {settings.AWS_REGION}")
         print(f"   - Debug Mode: {settings.DEBUG}")
     except Exception as e:

@@ -7,8 +7,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
+from app.config.settings import get_settings
 from app.core.startup import startup_handler
+
+settings = get_settings()
 from app.api.router import router
 from app.tracing import setup_tracing
 
@@ -29,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    version=settings.VERSION,
+    version=settings.APP_VERSION,
     description="주간 일기 분석 및 감정 리포트 서비스",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -78,6 +80,6 @@ async def root():
     """루트 엔드포인트"""
     return {
         "service": settings.APP_NAME,
-        "version": settings.VERSION,
+        "version": settings.APP_VERSION,
         "description": "주간 일기 분석 및 감정 리포트 서비스"
     }

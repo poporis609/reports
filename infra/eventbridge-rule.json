@@ -1,12 +1,12 @@
 {
   "Name": "weekly-report-scheduler",
-  "Description": "매주 일요일 자정에 주간 리포트 생성 Lambda를 트리거합니다",
-  "ScheduleExpression": "cron(0 0 ? * SUN *)",
+  "Description": "매주 일요일 12시(KST)에 주간 리포트 생성 Lambda를 트리거합니다",
+  "ScheduleExpression": "cron(0 3 ? * SUN *)",
   "State": "ENABLED",
   "Targets": [
     {
       "Id": "weekly-report-lambda-target",
-      "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:weekly-report-scheduler",
+      "Arn": "arn:aws:lambda:ap-northeast-2:324547056370:function:weekly-report-scheduler",
       "Input": "{\"source\": \"eventbridge\", \"action\": \"weekly-report\"}"
     }
   ]
