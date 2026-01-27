@@ -21,11 +21,14 @@ class EmailServiceError(Exception):
 class EmailService:
     """AWS SES 이메일 서비스"""
     
+    # SES는 도메인이 인증된 리전에서만 사용 가능
+    SES_REGION = "ap-northeast-2"
+    
     def __init__(self):
         self.settings = get_settings()
         self.client = boto3.client(
             "ses",
-            region_name=self.settings.AWS_REGION
+            region_name=self.SES_REGION  # SES는 도메인이 인증된 ap-northeast-2 사용
         )
         self.sender_email = self.settings.SES_SENDER_EMAIL
         self.api_base_url = self.settings.API_BASE_URL
